@@ -3892,6 +3892,79 @@
         ],
         "device_name": "STM32WB55RGVx"
     },
+    "MCU_STM32WL": {
+        "inherits": [
+            "MCU_STM32"
+        ],
+        "public": false,
+        "core": "Cortex-M4F",
+        "extra_labels_add": [
+            "STM32WL"
+        ],
+        "config": {
+            "lpticker_lptim": {
+                "help": "This target supports LPTIM. Set value 1 to use LPTIM for LPTICKER, or 0 to use RTC wakeup timer",
+                "value": 1
+            },
+            "lse_drive_load_level": {
+                "help": "HSE drive load level  RCC_LSEDRIVE_LOW | RCC_LSEDRIVE_MEDIUMLOW | RCC_LSEDRIVE_MEDIUMHIGH | RCC_LSEDRIVE_HIGH",
+                "value": "RCC_LSEDRIVE_LOW"
+            }
+        },
+        "macros_add": [
+            "MBED_TICKLESS",
+            "EXTRA_IDLE_STACK_REQUIRED"
+        ],
+        "overrides": {
+            "lpticker_delay_ticks": 0
+        },
+        "device_has_add": [
+            "MPU"
+        ],
+        "device_has_remove": [
+            "ANALOGIN",
+            "I2C",
+            "I2CSLAVE",
+            "I2C_ASYNCH",
+            "PORTIN",
+            "PORTINOUT",
+            "PORTOUT",
+            "PWMOUT",
+            "SPI",
+            "SPISLAVE",
+            "SPI_ASYNCH",
+            "WATCHDOG",
+            "RESET_REASON"
+        ]
+    },
+    "MCU_STM32WL55xC": {
+        "inherits": [
+            "MCU_STM32WL"
+        ],
+        "public": false,
+        "extra_labels_add": [
+            "STM32WL55xC"
+        ],
+        "macros_add": [
+            "STM32WL55xx"
+        ]
+    },
+    "NUCLEO_WL55JC": {
+        "inherits": [
+            "MCU_STM32WL55xC"
+        ],
+        "supported_form_factors": [
+            "ARDUINO"
+        ],
+        "detect_code": [
+            "0866"
+        ],
+        "device_name": "STM32WL55JCIx",
+        "mbed_rom_start": "0x08000000",
+        "mbed_rom_size": "0x40000",
+        "mbed_ram_start": "0x",
+        "mbed_ram_size": "0x"
+    },
     "MIMXRT1050_EVK": {
         "supported_form_factors": [
             "ARDUINO"
