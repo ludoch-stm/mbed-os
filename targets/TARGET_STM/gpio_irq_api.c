@@ -319,7 +319,7 @@ int gpio_irq_init(gpio_irq_t *obj, PinName pin, gpio_irq_handler handler, uint32
     core_util_critical_section_enter();
 
     /* Enable SYSCFG Clock */
-#if !defined(TARGET_STM32WB)
+#if (!defined(TARGET_STM32WB) && !defined(TARGET_STM32WL))
     __HAL_RCC_SYSCFG_CLK_ENABLE();
 #endif
 

@@ -204,7 +204,7 @@ __WEAK void hal_deepsleep(void)
     if (!pwrClockEnabled) {
         __HAL_RCC_PWR_CLK_DISABLE();
     }
-#elif defined(DUAL_CORE)
+#elif defined(DUAL_CORE) && (TARGET_STM32H7)
     int lowPowerModeEnabled = LL_PWR_GetRegulModeDS();
 
 #if defined(CORE_CM7)
@@ -232,7 +232,7 @@ __WEAK void hal_deepsleep(void)
     mbed_sdk_inited = 0;
 
     /* After wake-up from STOP reconfigure the PLL */
-#if defined(DUAL_CORE)
+#if defined(DUAL_CORE) && (TARGET_STM32H7)
     /* CFG_HW_STOP_MODE_SEMID is used to protect read access to STOP flag, and this avoid both core to configure clocks if both exit from stop at the same time */
     while (LL_HSEM_1StepLock(HSEM, CFG_HW_STOP_MODE_SEMID)) {
     }

@@ -3897,7 +3897,7 @@
             "MCU_STM32"
         ],
         "public": false,
-        "core": "Cortex-M4F",
+        "core": "Cortex-M4",
         "extra_labels_add": [
             "STM32WL"
         ],
@@ -3942,6 +3942,10 @@
             "MCU_STM32WL"
         ],
         "public": false,
+        "mbed_rom_start": "0x08000000",
+        "mbed_rom_size": "0x40000",
+        "mbed_ram_start": "0x20000000",
+        "mbed_ram_size": "0x10000",
         "extra_labels_add": [
             "STM32WL55xC"
         ],
@@ -3959,11 +3963,7 @@
         "detect_code": [
             "0866"
         ],
-        "device_name": "STM32WL55JCIx",
-        "mbed_rom_start": "0x08000000",
-        "mbed_rom_size": "0x40000",
-        "mbed_ram_start": "0x",
-        "mbed_ram_size": "0x"
+        "device_name": "STM32WL55JCIx"
     },
     "MIMXRT1050_EVK": {
         "supported_form_factors": [

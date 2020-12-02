@@ -92,34 +92,34 @@ typedef enum {
     ADC_VBAT = 0xF2, // Internal pin virtual value
 
     // Arduino Uno(Rev3) Header pin connection naming
-    A0 = Px_x,
-    A1 = Px_x,
-    A2 = Px_x,
-    A3 = Px_x,
-    A4 = Px_x,
-    A5 = Px_x,
-    D0 = Px_x,
-    D1 = Px_x,
-    D2 = Px_x,
-    D3 = Px_x,
-    D4 = Px_x,
-    D5 = Px_x,
-    D6 = Px_x,
-    D7 = Px_x,
-    D8 = Px_x,
-    D9 = Px_x,
-    D10= Px_x,
-    D11= Px_x,
-    D12= Px_x,
-    D13= Px_x,
-    D14= Px_x,
-    D15= Px_x,
+    A0 = PB_1,
+    A1 = PB_2,
+    A2 = PA_10,
+    A3 = PB_4,
+    A4 = PB_14,
+    A5 = PB_13,
+    D0 = PB_7,
+    D1 = PB_6,
+    D2 = PB_12,
+    D3 = PB_3,
+    D4 = PB_5,
+    D5 = PB_8,
+    D6 = PB_10,
+    D7 = PC_1,
+    D8 = PC_2,
+    D9 = PA_9,
+    D10= PA_4,
+    D11= PA_7,
+    D12= PA_6,
+    D13= PA_5,
+    D14= PA_11,
+    D15= PA_12,
 
     // STDIO for console print
 #ifdef MBED_CONF_TARGET_STDIO_UART_TX
     STDIO_UART_TX = MBED_CONF_TARGET_STDIO_UART_TX,
 #else
-    STDIO_UART_TX = Px_x,
+    STDIO_UART_TX = PA_2,
 #endif
 #ifdef MBED_CONF_TARGET_STDIO_UART_RX
     STDIO_UART_RX = MBED_CONF_TARGET_STDIO_UART_RX,
@@ -144,7 +144,7 @@ typedef enum {
     LED1    = PB_11, // LED3
     LED2    = PB_15, // LED1
     LED3    = PB_9, // LED2
-    BUTTON1 = Px_x,
+    BUTTON1 = PC_13,
 
     // Backward legacy names
     USER_BUTTON = BUTTON1,
