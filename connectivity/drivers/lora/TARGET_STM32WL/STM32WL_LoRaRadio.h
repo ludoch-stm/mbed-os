@@ -50,17 +50,10 @@ SPDX-License-Identifier: BSD-3-Clause
 class STM32WL_LoRaRadio : public LoRaRadio {
 
 public:
-    STM32WL_LoRaRadio(PinName mosi,
-                     PinName miso,
-                     PinName sclk,
-                     PinName nss,
-                     PinName reset,
-                     PinName dio1,
-                     // PinName busy,
-                     // PinName freq_select,
-                     // PinName device_select,
-                     // PinName crystal_select,
-                     PinName ant_switch);
+    STM32WL_LoRaRadio( PinName crystal_select,
+	                   PinName rf_switch_ctrl1,
+                       PinName rf_switch_ctrl2,
+                       PinName rf_switch_ctrl3);
 
     virtual ~STM32WL_LoRaRadio();
 
@@ -290,35 +283,17 @@ public:
     virtual void unlock(void);
 
 private:
-
-    // SPI and chip select control
-    // mbed::SPI _spi;
-    mbed::DigitalOut _chip_select;
-
-    // module rest control
-    mbed::DigitalInOut _reset_ctl;
-
-    // Interrupt controls
-    mbed::InterruptIn _dio1_ctl;;
-
-    // module busy control
-    mbed::DigitalIn _busy;
-
-    // module frequency selection
-    // mbed::AnalogIn _freq_select;
-
-    // module device variant selection
-    // mbed::AnalogIn _dev_select;
-
     // module TCXO/XTAL control
     mbed::DigitalIn _crystal_select;
 
     // Radio specific controls (TX/RX duplexer switch control)
-    mbed::DigitalInOut _ant_switch;
-
+    mbed::DigitalInOut rf_switch_ctrl1;
+    mbed::DigitalInOut rf_switch_ctrl2;
+	mbed::DigitalInOut rf_switch_ctrl3;
     // Structure containing function pointers to the stack callbacks
-    radio_events_t *_radio_events;
-
+     radio_events_t *_radio_events;
+    //SUBGHZ_HandleTypeDef hsubghz;
+	
     // Data buffer used for both TX and RX
     // Size of this buffer is configurable via Mbed config system
     // Default is 255 bytes
@@ -337,7 +312,7 @@ private:
     void read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     void write_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     // void set_dio2_as_rfswitch_ctrl(uint8_t enable);
-    // void set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
+     void set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
     uint8_t get_device_variant(void);
     void set_device_ready(void);
     int8_t get_rssi();
@@ -358,7 +333,7 @@ private:
     void dio1_irq_isr();
 
     // Handler called by thread in response to signal
-    void handle_dio1_irq();
+    // void handle_dio1_irq();
 
     void set_modulation_params(modulation_params_t *modulationParams);
     void set_packet_params(packet_params_t *packet_params);

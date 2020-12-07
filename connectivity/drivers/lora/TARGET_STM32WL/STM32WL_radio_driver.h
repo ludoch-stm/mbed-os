@@ -163,7 +163,7 @@ typedef union {
 
     uint8_t value;
 
-} caliberation_params_t;
+} calibration_params_t;
 
 /*!
  * \brief Represents the possible radio system error states
