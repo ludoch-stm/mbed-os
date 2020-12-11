@@ -21,6 +21,16 @@ Copyright (c) 2019, Arm Limited and affiliates.
 
 SPDX-License-Identifier: BSD-3-Clause
 */
+/**
+  ******************************************************************************
+  *
+  *          Portions COPYRIGHT 2020 STMicroelectronics
+  *
+  * @file    STM32WL_loRaRadio.h
+  * @author  MCD Application Team
+  * @brief   header of radio driver
+  ******************************************************************************
+  */
 
 #ifndef MBED_LORA_RADIO_DRV_STM32WL_LORARADIO_H_
 #define MBED_LORA_RADIO_DRV_STM32WL_LORARADIO_H_
@@ -34,10 +44,6 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "AnalogIn.h"
 #include "SPI.h"
 #include "platform/PlatformMutex.h"
-#ifdef MBED_CONF_RTOS_PRESENT
-#include "rtos/Thread.h"
-#include "rtos/ThisThread.h"
-#endif
 #include "STM32WL_radio_driver.h"
 #include "lorawan/LoRaRadio.h"
 
@@ -65,10 +71,6 @@ public:
      */
     virtual void init_radio(radio_events_t *events);
 
-    /**
-     * Resets the radio module
-     */
-    virtual void radio_reset();
 
     /**
      *  Put the RF module in sleep mode
@@ -287,9 +289,10 @@ private:
     mbed::DigitalIn _crystal_select;
 
     // Radio specific controls (TX/RX duplexer switch control)
-    mbed::DigitalInOut rf_switch_ctrl1;
-    mbed::DigitalInOut rf_switch_ctrl2;
-	mbed::DigitalInOut rf_switch_ctrl3;
+    mbed::DigitalInOut _rf_switch_ctrl1;
+    mbed::DigitalInOut _rf_switch_ctrl2;
+	mbed::DigitalInOut _rf_switch_ctrl3;
+	
     // Structure containing function pointers to the stack callbacks
      radio_events_t *_radio_events;
     //SUBGHZ_HandleTypeDef hsubghz;
@@ -299,10 +302,6 @@ private:
     // Default is 255 bytes
     uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_SX126X];
 
-#ifdef MBED_CONF_RTOS_PRESENT
-    // Thread to handle interrupts
-    rtos::Thread irq_thread;
-#endif
 
     // Access protection
     PlatformMutex mutex;
@@ -313,7 +312,6 @@ private:
     void write_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     // void set_dio2_as_rfswitch_ctrl(uint8_t enable);
      void set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
-    uint8_t get_device_variant(void);
     void set_device_ready(void);
     int8_t get_rssi();
     uint8_t get_fsk_bw_reg_val(uint32_t bandwidth);
@@ -329,6 +327,7 @@ private:
     uint16_t get_irq_status(void);
     uint8_t get_frequency_support(void);
 
+    void error_handler(HAL_StatusTypeDef error);
     // ISR
     void dio1_irq_isr();
 
