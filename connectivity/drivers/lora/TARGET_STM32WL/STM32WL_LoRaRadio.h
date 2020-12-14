@@ -71,6 +71,10 @@ public:
      */
     virtual void init_radio(radio_events_t *events);
 
+    /**
+     * Resets the radio module
+     */
+    virtual void radio_reset();
 
     /**
      *  Put the RF module in sleep mode
@@ -169,6 +173,15 @@ public:
      *  @param size          Buffer size
      */
     virtual void send(uint8_t *buffer, uint8_t size);
+
+    /**
+     * For backwards compatibility
+     */
+    virtual void receive(uint32_t timeout)
+    {
+        (void) timeout;
+        receive();
+    }
 
     /**
      * Sets the radio to receive

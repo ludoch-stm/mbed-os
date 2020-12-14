@@ -63,7 +63,7 @@ SPDX-License-Identifier: BSD-3-Clause
 #define RF_TCXO_VCC_CLK_ENABLE()                 __HAL_RCC_GPIOB_CLK_ENABLE()
 #define RF_TCXO_VCC_CLK_DISABLE()                __HAL_RCC_GPIOB_CLK_DISABLE()
 
-extern SUBGHZ_HandleTypeDef hsubghz;
+SUBGHZ_HandleTypeDef hsubghz;
 
 using namespace mbed;
 using namespace rtos;
@@ -222,6 +222,12 @@ void STM32WL_LoRaRadio::start_cad(void)
     //       for this to act properly
 }
 
+void STM32WL_LoRaRadio::radio_reset()
+{
+// TODO
+}
+
+
 /**
  * TODO: The purpose of this API is unclear.
  *       Need to start an internal discussion.
@@ -303,7 +309,7 @@ void STM32WL_LoRaRadio::standby(void)
     uint8_t standby_mode = 1;
 #else
 	uint8_t standby_mode = 0;
-#endif.
+#endif
     write_opmode_command((uint8_t) RADIO_SET_STANDBY, &standby_mode, 1);
 
     if (standby_mode == STDBY_RC) {
@@ -927,34 +933,34 @@ void STM32WL_LoRaRadio::set_tx_power(int8_t power)
 {
     uint8_t buf[2];
 
-    if (get_device_variant() == SX1261) {
-        if (power >= 14) {
-            set_pa_config(0x04, 0x00, 0x01, 0x01);
-            power = 14;
-        } else if (power < 14) {
-            set_pa_config(0x01, 0x00, 0x01, 0x01);
-        }
+    // if (get_device_variant() == SX1261) {
+    //     if (power >= 14) {
+    //         set_pa_config(0x04, 0x00, 0x01, 0x01);
+    //         power = 14;
+    //     } else if (power < 14) {
+    //         set_pa_config(0x01, 0x00, 0x01, 0x01);
+    //     }
 
-        if (power < -3) {
-            power = -3;
-        }
-        write_to_register(REG_OCP, 0x18); // current max is 80 mA for the whole device
-    } else {
-        // sx1262 or sx1268
-        if (power > 22) {
-            power = 22;
-        } else if (power < -3) {
-            power = -3;
-        }
+    //     if (power < -3) {
+    //         power = -3;
+    //     }
+    //     write_to_register(REG_OCP, 0x18); // current max is 80 mA for the whole device
+    // } else {
+    //     // sx1262 or sx1268
+    //     if (power > 22) {
+    //         power = 22;
+    //     } else if (power < -3) {
+    //         power = -3;
+    //     }
 
-        if (power <= 14) {
-            set_pa_config(0x02, 0x02, 0x00, 0x01);
-        } else {
-            set_pa_config(0x04, 0x07, 0x00, 0x01);
-        }
+    //     if (power <= 14) {
+    //         set_pa_config(0x02, 0x02, 0x00, 0x01);
+    //     } else {
+    //         set_pa_config(0x04, 0x07, 0x00, 0x01);
+    //     }
 
-        write_to_register(REG_OCP, 0x38); // current max 160mA for the whole device
-    }
+    //     write_to_register(REG_OCP, 0x38); // current max 160mA for the whole device
+    // }
 
     buf[0] = power;
 
