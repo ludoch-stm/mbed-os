@@ -20,6 +20,10 @@
         "standby-mode": {
         	"help": "Default: STDBY_RC = 0, STDBY_XOSC = 1",
         	"value": 0
+        },
+	"crystal_select": {
+        	"help": "Default: Internal XO = 0, TCXO = 1",
+        	"value": 1
         }
     }
 }

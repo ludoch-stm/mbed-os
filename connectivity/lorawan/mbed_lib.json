@@ -95,8 +95,8 @@
         }
     },
 	"target_overrides": {
-        "NUCLEO_WL55RC": {
+          "NUCLEO_WL55RC": {
             "wakeup-time": 10
-        }
-	}
+            }
+          }
 }

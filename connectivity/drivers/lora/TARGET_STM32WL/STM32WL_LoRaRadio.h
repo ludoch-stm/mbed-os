@@ -48,16 +48,15 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "lorawan/LoRaRadio.h"
 
 #ifdef MBED_CONF_STM32WL_LORA_DRIVER_BUFFER_SIZE
-#define MAX_DATA_BUFFER_SIZE_SX126X                        MBED_CONF_STM32WL_LORA_DRIVER_BUFFER_SIZE
+#define MAX_DATA_BUFFER_SIZE_STM32WL                        MBED_CONF_STM32WL_LORA_DRIVER_BUFFER_SIZE
 #else
-#define MAX_DATA_BUFFER_SIZE_SX126X                        255
+#define MAX_DATA_BUFFER_SIZE_STM32WL                        255
 #endif
 
 class STM32WL_LoRaRadio : public LoRaRadio {
 
 public:
-    STM32WL_LoRaRadio( PinName crystal_select,
-	                   PinName rf_switch_ctrl1,
+    STM32WL_LoRaRadio( PinName rf_switch_ctrl1,
                        PinName rf_switch_ctrl2,
                        PinName rf_switch_ctrl3);
 
@@ -297,23 +296,31 @@ public:
      */
     virtual void unlock(void);
 
-private:
-    // module TCXO/XTAL control
-    mbed::DigitalIn _crystal_select;
 
-    // Radio specific controls (TX/RX duplexer switch control)
-    mbed::DigitalInOut _rf_switch_ctrl1;
-    mbed::DigitalInOut _rf_switch_ctrl2;
-	mbed::DigitalInOut _rf_switch_ctrl3;
-	
-    // Structure containing function pointers to the stack callbacks
-     radio_events_t *_radio_events;
+    static void get_rx_buffer_status(uint8_t *payload_len, uint8_t *rx_buffer_ptr);
+    static void get_packet_status(packet_status_t *pkt_status);
+    static void read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset);
+    
+    static uint16_t get_irq_status(void);
+    
+     // Structure containing function pointers to the stack callbacks
+    static radio_events_t *_radio_events;
     //SUBGHZ_HandleTypeDef hsubghz;
 	
     // Data buffer used for both TX and RX
     // Size of this buffer is configurable via Mbed config system
     // Default is 255 bytes
-    uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_SX126X];
+    static uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];   
+
+    static uint8_t _operation_mode;
+    
+private:
+
+    // Radio specific controls (TX/RX duplexer switch control)
+    mbed::DigitalInOut _rf_switch_ctrl1;
+    mbed::DigitalInOut _rf_switch_ctrl2;
+    mbed::DigitalInOut _rf_switch_ctrl3;
+	
 
 
     // Access protection
@@ -321,7 +328,7 @@ private:
 
     // helper functions
     void wakeup();
-    void read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
+    static void read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     void write_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     // void set_dio2_as_rfswitch_ctrl(uint8_t enable);
      void set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
@@ -330,19 +337,19 @@ private:
     uint8_t get_fsk_bw_reg_val(uint32_t bandwidth);
     void write_to_register(uint16_t addr, uint8_t data);
     void write_to_register(uint16_t addr, uint8_t *data, uint8_t size);
-    uint8_t read_register(uint16_t addr);
-    void read_register(uint16_t addr, uint8_t *buffer, uint8_t size);
+    static uint8_t read_register(uint16_t addr);
+    static void read_register(uint16_t addr, uint8_t *buffer, uint8_t size);
     void write_fifo(uint8_t *buffer, uint8_t size);
-    void read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset);
+
     void rf_irq_task(void);
     void set_modem(uint8_t modem);
-    uint8_t get_modem();
-    uint16_t get_irq_status(void);
+    static uint8_t get_modem();
+
     uint8_t get_frequency_support(void);
 
-    void error_handler(HAL_StatusTypeDef error);
+    static void error_handler(HAL_StatusTypeDef error);
     // ISR
-    void dio1_irq_isr();
+//    void dio1_irq_isr();
 
     // Handler called by thread in response to signal
     // void handle_dio1_irq();
@@ -353,8 +360,7 @@ private:
                         uint8_t det_min, cad_exit_modes_t exit_mode,
                         uint32_t timeout);
     void set_buffer_base_addr(uint8_t tx_base_addr, uint8_t rx_base_addr);
-    void get_rx_buffer_status(uint8_t *payload_len, uint8_t *rx_buffer_ptr);
-    void get_packet_status(packet_status_t *pkt_status);
+
     radio_error_t get_device_errors(void);
     void clear_device_errors(void);
     void clear_irq_status(uint16_t irq);
@@ -370,9 +376,8 @@ private:
     void cold_start_wakeup();
 
 private:
-    uint8_t _active_modem;
+    static uint8_t _active_modem;
     uint8_t _standby_mode;
-    uint8_t _operation_mode;
     uint8_t _reception_mode;
     uint32_t _tx_timeout;
     uint32_t _rx_timeout;

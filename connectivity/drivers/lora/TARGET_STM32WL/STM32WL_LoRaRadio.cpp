@@ -65,8 +65,29 @@ SPDX-License-Identifier: BSD-3-Clause
 
 SUBGHZ_HandleTypeDef hsubghz;
 
+#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_REGULATOR_MODE == 1
+	uint8_t regulator_mode = 1;
+#else
+	uint8_t regulator_mode = 0;
+#endif
+#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_CRYSTAL_SELECT_MODE == 1
+  uint8_t _crystal_select  = 1;
+#else
+	uint8_t _crystal_select = 0;
+#endif
+
+/* redeclare static variable */
+//uint8_t* STM32WL_LoRaRadio::_active_modem;
+
 using namespace mbed;
 using namespace rtos;
+
+#ifdef MBED_CONF_RTOS_PRESENT
+/**
+ * Signals
+ */
+#define SIG_INTERRUPT        0x02
+#endif
 
 /*!
  * FSK bandwidth definition
@@ -109,20 +130,25 @@ const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.0
     { 8.192,  4.096,  2.048, 1.024, 0.512, 0.256 }
 }; // 500 KHz
 
-STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName crystal_select,
-									 PinName rf_switch_ctrl1,
+STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
 									 PinName rf_switch_ctrl2,
 									 PinName rf_switch_ctrl3)
-    :   _crystal_select(crystal_select, PullDown),
-        _rf_switch_ctrl1(rf_switch_ctrl1, PIN_INPUT, PullUp, 0),
-        _rf_switch_ctrl2(rf_switch_ctrl2, PIN_INPUT, PullUp, 0),
-        _rf_switch_ctrl3(rf_switch_ctrl3, PIN_INPUT, PullUp, 0)
+    :
+        _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
+        _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
+        _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0)
+//#ifdef MBED_CONF_RTOS_PRESENT
+//    , irq_thread(osPriorityRealtime, 1024, NULL, "LR-SX126X")
+//#endif
 		
 {
     _radio_events = NULL;
     _image_calibrated = false;
     _force_image_calibration = false;
     _active_modem = MODEM_LORA;
+//#ifdef MBED_CONF_RTOS_PRESENT
+//    irq_thread.start(callback(this, &STM32WL_LoRaRadio::rf_irq_task));
+//#endif
 }
 
 STM32WL_LoRaRadio::~STM32WL_LoRaRadio()
@@ -146,6 +172,24 @@ void STM32WL_LoRaRadio::unlock(void)
     mutex.unlock();
 }
 
+//#ifdef MBED_CONF_RTOS_PRESENT
+///**
+// * Thread task handling IRQs
+// */
+//void STM32WL_LoRaRadio::rf_irq_task(void)
+//{
+//    for (;;) {
+//        uint32_t flags = ThisThread::flags_wait_any(0x7FFFFFFF);
+
+//        lock();
+//        if (flags & SIG_INTERRUPT) {
+//            handle_dio1_irq();
+//        }
+//        unlock();
+//    }
+//}
+//#endif
+
 void STM32WL_LoRaRadio::error_handler(HAL_StatusTypeDef error)
 {
   printf ("ERROR in STM32WL_loRaRadio.c : %d", error);
@@ -157,10 +201,14 @@ void STM32WL_LoRaRadio::error_handler(HAL_StatusTypeDef error)
   /* USER CODE END error_handler_Debug */
 }
 
-void STM32WL_LoRaRadio::dio1_irq_isr()
-{
-    HAL_SUBGHZ_IRQHandler(&hsubghz);
-}
+//void STM32WL_LoRaRadio::dio1_irq_isr()
+//{
+//#ifdef MBED_CONF_RTOS_PRESENT
+//    irq_thread.flags_set(SIG_INTERRUPT);
+//#else
+//    handle_dio1_irq();
+//#endif
+//}
 
 uint16_t STM32WL_LoRaRadio::get_irq_status(void)
 {
@@ -222,10 +270,6 @@ void STM32WL_LoRaRadio::start_cad(void)
     //       for this to act properly
 }
 
-void STM32WL_LoRaRadio::radio_reset()
-{
-// TODO
-}
 
 
 /**
@@ -244,6 +288,89 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
     // This is useless. We even removed the support from our MAC layer.
 }
 
+
+/* HAL_SUBGHz Callbacks definitions */ 
+void HAL_SUBGHZ_TxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
+{
+  //_radio_events->tx_done = hsubghz->TxCpltCallback;
+  if (STM32WL_LoRaRadio::_radio_events->tx_done) {
+            STM32WL_LoRaRadio::_radio_events->tx_done();
+        }
+}
+
+void HAL_SUBGHZ_RxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
+{
+    if (STM32WL_LoRaRadio::_radio_events->rx_done) {
+                uint8_t offset = 0;
+                uint8_t payload_len = 0;
+                int16_t rssi = 0;
+                int8_t snr = 0;
+                packet_status_t pkt_status;
+
+      STM32WL_LoRaRadio::get_rx_buffer_status(&payload_len, &offset);
+      STM32WL_LoRaRadio::read_fifo(STM32WL_LoRaRadio::_data_buffer, payload_len, offset);
+      STM32WL_LoRaRadio::get_packet_status(&pkt_status);
+                if (pkt_status.modem_type == MODEM_FSK) {
+                    rssi = pkt_status.params.gfsk.rssi_sync;
+                } else {
+                    rssi = pkt_status.params.lora.rssi_pkt;
+                    snr = pkt_status.params.lora.snr_pkt;
+                }
+
+                STM32WL_LoRaRadio::_radio_events->rx_done(STM32WL_LoRaRadio::_data_buffer, payload_len, rssi, snr);
+            }
+
+}
+
+void HAL_SUBGHZ_CRCErrorCallback (SUBGHZ_HandleTypeDef *hsubghz)
+{
+            if (STM32WL_LoRaRadio::_radio_events && STM32WL_LoRaRadio::_radio_events->rx_error) {
+                STM32WL_LoRaRadio::_radio_events->rx_error();
+            }
+}
+
+void HAL_SUBGHZ_CADStatusCallback(SUBGHZ_HandleTypeDef *hsubghz, HAL_SUBGHZ_CadStatusTypeDef cadstatus)
+{
+  uint16_t irq_status = STM32WL_LoRaRadio::get_irq_status();
+  
+  if (STM32WL_LoRaRadio::_radio_events->cad_done) {
+            STM32WL_LoRaRadio::_radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
+                                    == IRQ_CAD_ACTIVITY_DETECTED);
+        }
+
+}
+
+void HAL_SUBGHZ_RxTxTimeoutCallback(SUBGHZ_HandleTypeDef *hsubghz)
+{
+  if ((STM32WL_LoRaRadio::_radio_events->tx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_TX)) 
+    {
+            STM32WL_LoRaRadio::_radio_events->tx_timeout();
+    } 
+  else if ((STM32WL_LoRaRadio::_radio_events && STM32WL_LoRaRadio::_radio_events->rx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_RX)) 
+    {
+            STM32WL_LoRaRadio::_radio_events->rx_timeout();
+    }
+}
+
+// void HAL_SUBGHZ_HeaderErrorCallback(SUBGHZ_HandleTypeDef *hsubghz)
+// {
+    // RadioOnDioIrqCb( IRQ_HEADER_ERROR );
+// }
+
+// void HAL_SUBGHZ_PreambleDetectedCallback(SUBGHZ_HandleTypeDef *hsubghz)
+// {
+    // RadioOnDioIrqCb( IRQ_PREAMBLE_DETECTED );
+// }
+
+// void HAL_SUBGHZ_SyncWordValidCallback(SUBGHZ_HandleTypeDef *hsubghz)
+// {
+    // RadioOnDioIrqCb( IRQ_SYNCWORD_VALID );
+// }
+
+// void HAL_SUBGHZ_HeaderValidCallback(SUBGHZ_HandleTypeDef *hsubghz)
+// {
+    // RadioOnDioIrqCb( IRQ_HEADER_VALID );
+// }
 
 void STM32WL_LoRaRadio::calibrate_image(uint32_t freq)
 {
@@ -340,37 +467,58 @@ void STM32WL_LoRaRadio::set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage,
 void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 {
     HAL_StatusTypeDef error_value;
-	
+	uint32_t vector = 0;
+		
 	_radio_events = events;
-    
+  
+// attach DIO1 interrupt line to its respective ISR
+//  _dio1_ctl.rise(callback(this, &STM32WL_LoRaRadio::dio1_irq_isr));
+  
+  // DBG LCH: call to HAL_SUBGHZ_Init()?
 	error_value = HAL_SUBGHZ_Init(&hsubghz);
     
 	if (error_value!= HAL_OK)
     {
       error_handler(error_value);
     }
+	  // DBG LCH: check if necessary
+	  // this is a POR sequence
+    cold_start_wakeup();
+	
+///* GPIO extract */
+//    core_util_critical_section_enter();
+//    // Save informations for future use
+//    obj->irq_n = pin_lines_desc[pin_index].irq_n;
+//    obj->irq_index =  pin_lines_desc[pin_index].irq_index;
+//    obj->event = EDGE_NONE;
+//    obj->pin = pin;
+
+
+//    irq_handler = handler;
+
+//    // Enable EXTI interrupt
+//    NVIC_SetVector(obj->irq_n, vector);
+//    gpio_irq_enable(obj);
+
+//    core_util_critical_section_exit();
 }
+
 
 void STM32WL_LoRaRadio::cold_start_wakeup()
 {
 	GPIO_InitTypeDef  gpio_init_structure = {0};
-	
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_REGULATOR_MODE == 1
-	uint8_t regulator_mode = 1;
-#else
-	uint8_t regulator_mode = 0;
-#endif
-
+	 
     write_opmode_command(RADIO_SET_REGULATORMODE, &regulator_mode, 1);
     set_buffer_base_addr(0x00, 0x00);
 
-    if (_crystal_select.is_connected() && _crystal_select == 0) {
+    if (_crystal_select == 0) {
         calibration_params_t calib_param;
         set_dio3_as_tcxo_ctrl(TCXO_CTRL_1_7V, 320); //5 ms
         calib_param.value = 0x7F;
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
     }
-
+    
+    //DBG LCH: clean
     // set_dio2_as_rfswitch_ctrl(true);
     /* Init RF Switch */
 	// BSP_RADIO_Init();
@@ -457,7 +605,35 @@ uint32_t STM32WL_LoRaRadio::time_on_air(radio_modems_t modem, uint8_t pkt_len)
     return air_time;
 }
 
+void STM32WL_LoRaRadio::radio_reset()
+{
+//    _reset_ctl.output();
+//    _reset_ctl = 0;
+//    // should be enough, required is 50-100 us
+//    ThisThread::sleep_for(2);
+//    _reset_ctl.input();
+    // give some time for automatic image calibration
+    ThisThread::sleep_for(6);
+}
 
+void STM32WL_LoRaRadio::wakeup()
+{
+    // hold the NSS low, this should wakeup the chip.
+    // now we should wait for the _busy line to go low
+    if (_operation_mode == MODE_SLEEP) {
+//        _chip_select = 0;
+//        wait_us(100);
+//        _chip_select = 1;
+//        //wait_us(100);
+#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_SLEEP_MODE == 1
+        wait_us(3500);
+        // whenever we wakeup from Cold sleep state, we need to perform
+        // image calibration
+        _force_image_calibration = true;
+        cold_start_wakeup();
+#endif
+    }
+}
 
 void STM32WL_LoRaRadio::sleep(void)
 {
@@ -502,8 +678,7 @@ void STM32WL_LoRaRadio::write_opmode_command(uint8_t cmd, uint8_t *buffer, uint1
 	
 }
 
-void STM32WL_LoRaRadio::read_opmode_command(uint8_t cmd,
-                                           uint8_t *buffer, uint16_t size)
+void STM32WL_LoRaRadio::read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size)
 {
 	HAL_StatusTypeDef error_value;
 	
@@ -604,7 +779,7 @@ void STM32WL_LoRaRadio::read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset)
     error_value = HAL_SUBGHZ_ReadBuffer( &hsubghz, offset, buffer, size );
    if(error_value != HAL_OK)  /* 2nd param is offset */
 	{
-      error_handler(error_value);
+    error_handler(error_value);
     }
 }
 
@@ -964,7 +1139,7 @@ void STM32WL_LoRaRadio::set_tx_power(int8_t power)
 
     buf[0] = power;
 
-    if (_crystal_select.is_connected() && _crystal_select == 0) {
+    if (_crystal_select == 0) {
         // TCXO
         buf[1] = RADIO_RAMP_200_US;
     } else {
