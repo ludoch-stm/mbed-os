@@ -76,8 +76,8 @@ SUBGHZ_HandleTypeDef hsubghz;
 	uint8_t _crystal_select = 0;
 #endif
 
-/* redeclare static variable */
-//uint8_t* STM32WL_LoRaRadio::_active_modem;
+
+//uint8_t STM32WL_LoRaRadio::_data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL]; 
 
 using namespace mbed;
 using namespace rtos;
@@ -288,68 +288,104 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
     // This is useless. We even removed the support from our MAC layer.
 }
 
+/* STM32WL driver specific functions */
+void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
+{
+
+  /* USER CODE BEGIN SUBGHZ_MspInit 0 */
+
+  /* USER CODE END SUBGHZ_MspInit 0 */
+    /* SUBGHZ clock enable */
+    __HAL_RCC_SUBGHZSPI_CLK_ENABLE();
+
+    /* SUBGHZ interrupt Init */
+    HAL_NVIC_SetPriority(SUBGHZ_Radio_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(SUBGHZ_Radio_IRQn);
+  /* USER CODE BEGIN SUBGHZ_MspInit 1 */
+
+  /* USER CODE END SUBGHZ_MspInit 1 */
+}
+
+
+/**
+  * @brief This function handles SUBGHZ Radio Interrupt.
+  */
+void SUBGHZ_Radio_IRQHandler(void)
+{
+  /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
+
+  /* USER CODE END SUBGHZ_Radio_IRQn 0 */
+  HAL_SUBGHZ_IRQHandler(&hsubghz);
+  /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
+
+  /* USER CODE END SUBGHZ_Radio_IRQn 1 */
+}
 
 /* HAL_SUBGHz Callbacks definitions */ 
-void HAL_SUBGHZ_TxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
 {
-  //_radio_events->tx_done = hsubghz->TxCpltCallback;
-  if (STM32WL_LoRaRadio::_radio_events->tx_done) {
-            STM32WL_LoRaRadio::_radio_events->tx_done();
+  if (_radio_events->tx_done) {
+            _radio_events->tx_done();
         }
 }
 
-void HAL_SUBGHZ_RxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz)
 {
-    if (STM32WL_LoRaRadio::_radio_events->rx_done) {
-                uint8_t offset = 0;
-                uint8_t payload_len = 0;
-                int16_t rssi = 0;
-                int8_t snr = 0;
-                packet_status_t pkt_status;
+    if (_radio_events->rx_done) {
+      uint8_t offset = 0;
+      uint8_t payload_len = 0;
+      int16_t rssi = 0;
+      int8_t snr = 0;
+      packet_status_t pkt_status;
 
       STM32WL_LoRaRadio::get_rx_buffer_status(&payload_len, &offset);
-      STM32WL_LoRaRadio::read_fifo(STM32WL_LoRaRadio::_data_buffer, payload_len, offset);
+      STM32WL_LoRaRadio::read_fifo(_data_buffer, payload_len, offset);
       STM32WL_LoRaRadio::get_packet_status(&pkt_status);
-                if (pkt_status.modem_type == MODEM_FSK) {
-                    rssi = pkt_status.params.gfsk.rssi_sync;
-                } else {
-                    rssi = pkt_status.params.lora.rssi_pkt;
-                    snr = pkt_status.params.lora.snr_pkt;
-                }
+      if (pkt_status.modem_type == MODEM_FSK) 
+      {
+           rssi = pkt_status.params.gfsk.rssi_sync;
+      } 
+      else 
+      {
+         rssi = pkt_status.params.lora.rssi_pkt;
+         snr = pkt_status.params.lora.snr_pkt;
+      }
 
-                STM32WL_LoRaRadio::_radio_events->rx_done(STM32WL_LoRaRadio::_data_buffer, payload_len, rssi, snr);
-            }
+      _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
+   }
 
 }
 
-void HAL_SUBGHZ_CRCErrorCallback (SUBGHZ_HandleTypeDef *hsubghz)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_CRCErrorCallback (SUBGHZ_HandleTypeDef *hsubghz)
 {
-            if (STM32WL_LoRaRadio::_radio_events && STM32WL_LoRaRadio::_radio_events->rx_error) {
-                STM32WL_LoRaRadio::_radio_events->rx_error();
-            }
+   if (_radio_events && _radio_events->rx_error) 
+     {
+       _radio_events->rx_error();
+     }
 }
 
-void HAL_SUBGHZ_CADStatusCallback(SUBGHZ_HandleTypeDef *hsubghz, HAL_SUBGHZ_CadStatusTypeDef cadstatus)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback(SUBGHZ_HandleTypeDef *hsubghz, HAL_SUBGHZ_CadStatusTypeDef cadstatus)
 {
   uint16_t irq_status = STM32WL_LoRaRadio::get_irq_status();
   
-  if (STM32WL_LoRaRadio::_radio_events->cad_done) {
-            STM32WL_LoRaRadio::_radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
+  if (_radio_events->cad_done) 
+    {
+      _radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
                                     == IRQ_CAD_ACTIVITY_DETECTED);
         }
 
 }
 
-void HAL_SUBGHZ_RxTxTimeoutCallback(SUBGHZ_HandleTypeDef *hsubghz)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(SUBGHZ_HandleTypeDef *hsubghz)
 {
-  if ((STM32WL_LoRaRadio::_radio_events->tx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_TX)) 
-    {
-            STM32WL_LoRaRadio::_radio_events->tx_timeout();
-    } 
-  else if ((STM32WL_LoRaRadio::_radio_events && STM32WL_LoRaRadio::_radio_events->rx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_RX)) 
-    {
-            STM32WL_LoRaRadio::_radio_events->rx_timeout();
-    }
+  if ((_radio_events->tx_timeout) && (_operation_mode == MODE_TX)) 
+  {
+    _radio_events->tx_timeout();
+  } 
+  else if ((_radio_events && _radio_events->rx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_RX)) 
+  {
+    _radio_events->rx_timeout();
+  }
 }
 
 // void HAL_SUBGHZ_HeaderErrorCallback(SUBGHZ_HandleTypeDef *hsubghz)
