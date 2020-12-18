@@ -25,16 +25,16 @@ extern "C" {
 #include "cmsis_nvic.h"
 
 #define TIM_MST      TIM2
-#define TIM_MST_IRQ  TIM16_IRQn //JMR
-#define TIM_MST_RCC  __HAL_RCC_TIM16_CLK_ENABLE()
-#define TIM_MST_DBGMCU_FREEZE  __HAL_DBGMCU_FREEZE_TIM16()
+#define TIM_MST_IRQ  TIM2_IRQn
+#define TIM_MST_RCC  __HAL_RCC_TIM2_CLK_ENABLE()
+#define TIM_MST_DBGMCU_FREEZE  __HAL_DBGMCU_FREEZE_TIM2()
 
-#define TIM_MST_RESET_ON   __HAL_RCC_TIM16_FORCE_RESET()
-#define TIM_MST_RESET_OFF  __HAL_RCC_TIM16_RELEASE_RESET()
+#define TIM_MST_RESET_ON   __HAL_RCC_TIM2_FORCE_RESET()
+#define TIM_MST_RESET_OFF  __HAL_RCC_TIM2_RELEASE_RESET()
 
-#define TIM_MST_BIT_WIDTH  16 // 16 or 32
+#define TIM_MST_BIT_WIDTH  32 // 16 or 32
 
-#define TIM_MST_PCLK  2 // Select the peripheral clock number (1 or 2)
+#define TIM_MST_PCLK  1 // Select the peripheral clock number (1 or 2)
 
 
 #ifdef __cplusplus

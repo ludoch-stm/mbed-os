@@ -33,6 +33,12 @@
 #include "mbed_error.h"
 #include "stm32wlxx_ll_hsem.h"
 
+// WORKAROUND TO DISABLE DEEPSLEEP
+void hal_deepsleep(void)
+{
+  hal_sleep();
+}
+// WORKAROUND TO DISABLE DEEPSLEEP
 
 
 void Error_Handler(void)
@@ -65,8 +71,7 @@ void SetSysClock(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
