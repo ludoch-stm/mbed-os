@@ -44,6 +44,10 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "AnalogIn.h"
 #include "SPI.h"
 #include "platform/PlatformMutex.h"
+#ifdef MBED_CONF_RTOS_PRESENT
+#include "rtos/Thread.h"
+#include "rtos/ThisThread.h"
+#endif
 #include "STM32WL_radio_driver.h"
 #include "lorawan/LoRaRadio.h"
 
@@ -296,11 +300,11 @@ public:
      */
     virtual void unlock(void);
     
-    void HAL_SUBGHZ_TxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz);
-    void HAL_SUBGHZ_RxCpltCallback(SUBGHZ_HandleTypeDef *hsubghz);
-    void HAL_SUBGHZ_CRCErrorCallback (SUBGHZ_HandleTypeDef *hsubghz);
-    void HAL_SUBGHZ_CADStatusCallback(SUBGHZ_HandleTypeDef *hsubghz, HAL_SUBGHZ_CadStatusTypeDef cadstatus);
-    void HAL_SUBGHZ_RxTxTimeoutCallback(SUBGHZ_HandleTypeDef *hsubghz);
+    void HAL_SUBGHZ_TxCpltCallback(void);
+    void HAL_SUBGHZ_RxCpltCallback(void);
+    void HAL_SUBGHZ_CRCErrorCallback (void);
+    void HAL_SUBGHZ_CADStatusCallback(void);
+    void HAL_SUBGHZ_RxTxTimeoutCallback(void);
     
     
 private:
@@ -308,7 +312,7 @@ private:
     // Radio specific controls (TX/RX duplexer switch control)
     mbed::DigitalInOut _rf_switch_ctrl1;
     mbed::DigitalInOut _rf_switch_ctrl2;
-	mbed::DigitalInOut _rf_switch_ctrl3;
+	  mbed::DigitalInOut _rf_switch_ctrl3;
 	
     // Structure containing function pointers to the stack callbacks
     radio_events_t *_radio_events;
@@ -319,6 +323,10 @@ private:
     // Default is 255 bytes
     uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];
 
+#ifdef MBED_CONF_RTOS_PRESENT
+    // Thread to handle interrupts
+    rtos::Thread irq_thread;
+#endif
     // Access protection
     PlatformMutex mutex;
 
@@ -345,10 +353,10 @@ private:
 
     void error_handler(HAL_StatusTypeDef error);
     // ISR
-//    void dio1_irq_isr();
+    void irq_process_isr();
 
-    // Handler called by thread in response to signal
-    // void handle_dio1_irq();
+    // Handler called by thread in response to signal: directly RadioIrqProcess
+    void RadioIrqProcess();
 
     void set_modulation_params(modulation_params_t *modulationParams);
     void set_packet_params(packet_params_t *packet_params);
