@@ -77,8 +77,21 @@ SUBGHZ_HandleTypeDef hsubghz;
 #endif
 
 static void SUBGHZ_Radio_IRQHandler(void);
+// Handler called by thread in response to signal directly
+static void RadioIrqProcess();
 
+// Structure containing function pointers to the stack callbacks
+static radio_events_t *_radio_events;
+//SUBGHZ_HandleTypeDef hsubghz;
+ 
+// Data buffer used for both TX and RX
+// Size of this buffer is configurable via Mbed config system
+// Default is 255 bytes
+static uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];
 
+static uint8_t _operation_mode;
+static uint8_t _active_modem;
+    
 using namespace mbed;
 using namespace rtos;
 
@@ -297,7 +310,8 @@ static void SUBGHZ_Radio_IRQHandler(void)
   /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
 
   /* USER CODE END SUBGHZ_Radio_IRQn 0 */
-  HAL_SUBGHZ_IRQHandler(&hsubghz);
+//  HAL_SUBGHZ_IRQHandler(&hsubghz);
+  RadioIrqProcess();
   /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
 
   /* USER CODE END SUBGHZ_Radio_IRQn 1 */
@@ -322,26 +336,32 @@ void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
   /* USER CODE END SUBGHZ_MspInit 1 */
 }
 
-void STM32WL_LoRaRadio::RadioIrqProcess()
+static void RadioIrqProcess()
 {
   // HAL_SUBGHZ_IRQHandler(&hsubghz)
-    uint16_t irq_status = get_irq_status();
-    clear_irq_status(IRQ_RADIO_ALL);
+  radio_irq_masks_t irq_status;
+  
+  irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
+  STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
 
     if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE) {
-         HAL_SUBGHZ_TxCpltCallback();
+      STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback();
+//      printf("TX complete\n");
     }
 
     if ((irq_status & IRQ_RX_DONE) == IRQ_RX_DONE) {
-        HAL_SUBGHZ_RxCpltCallback();
+      STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback();
+//      printf("RX complete\n");
     }
 
     if ((irq_status & IRQ_CAD_DONE) == IRQ_CAD_DONE) {
-         HAL_SUBGHZ_CADStatusCallback();
+      STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback();
+//      printf("CAD complete\n");
     }
 
     if ((irq_status & IRQ_RX_TX_TIMEOUT) == IRQ_RX_TX_TIMEOUT) {
-         HAL_SUBGHZ_RxTxTimeoutCallback();
+      STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback();
+//      printf("RX/TX timeout\n");
     }
 }
 
@@ -406,7 +426,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
   {
     _radio_events->tx_timeout();
   } 
-  else if ((_radio_events && _radio_events->rx_timeout) && (STM32WL_LoRaRadio::_operation_mode == MODE_RX)) 
+  else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX)) 
   {
     _radio_events->rx_timeout();
   }
@@ -506,10 +526,6 @@ void STM32WL_LoRaRadio::standby(void)
     }
 }
 
-// void STM32WL_LoRaRadio::set_dio2_as_rfswitch_ctrl(uint8_t enable)
-// {
-    // write_opmode_command(RADIO_SET_RFSWITCHMODE, &enable, 1);
-// }
 
 void STM32WL_LoRaRadio::set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage,
                                              uint32_t timeout)
@@ -531,10 +547,8 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 		
 	_radio_events = events;
   
-// attach SUBGHZ_Radio_IRQn interrupt line to its respective ISR
-//  SUBGHZ_Radio_IRQn.rise(callback(this, &STM32WL_LoRaRadio::irq_process_isr));
   
-  // DBG LCH: call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
+  //call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
 	error_value = HAL_SUBGHZ_Init(&hsubghz);
     
 	if (error_value!= HAL_OK)
@@ -544,23 +558,7 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 	  // DBG LCH: check if necessary
 	  // this is a POR sequence
     cold_start_wakeup();
-	
-///* GPIO extract */
-//    core_util_critical_section_enter();
-//    // Save informations for future use
-//    obj->irq_n = pin_lines_desc[pin_index].irq_n;
-//    obj->irq_index =  pin_lines_desc[pin_index].irq_index;
-//    obj->event = EDGE_NONE;
-//    obj->pin = pin;
 
-
-//    irq_handler = handler;
-
-//    // Enable EXTI interrupt
-//    NVIC_SetVector(obj->irq_n, vector);
-//    gpio_irq_enable(obj);
-
-//    core_util_critical_section_exit();
 }
 
 
