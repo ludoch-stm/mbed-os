@@ -76,6 +76,7 @@ SUBGHZ_HandleTypeDef hsubghz;
 	uint8_t _crystal_select = 0;
 #endif
 
+static void SUBGHZ_Radio_IRQHandler(void);
 
 
 using namespace mbed;
@@ -287,29 +288,11 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
     // This is useless. We even removed the support from our MAC layer.
 }
 
-/* STM32WL driver specific functions */
-void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
-{
-
-  /* USER CODE BEGIN SUBGHZ_MspInit 0 */
-
-  /* USER CODE END SUBGHZ_MspInit 0 */
-    /* SUBGHZ clock enable */
-    __HAL_RCC_SUBGHZSPI_CLK_ENABLE();
-
-    /* SUBGHZ interrupt Init */
-    HAL_NVIC_SetPriority(SUBGHZ_Radio_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(SUBGHZ_Radio_IRQn);
-  /* USER CODE BEGIN SUBGHZ_MspInit 1 */
-
-  /* USER CODE END SUBGHZ_MspInit 1 */
-}
-
 
 /**
   * @brief This function handles SUBGHZ Radio Interrupt.
   */
-void SUBGHZ_Radio_IRQHandler(void)
+static void SUBGHZ_Radio_IRQHandler(void)
 {
   /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
 
@@ -320,6 +303,24 @@ void SUBGHZ_Radio_IRQHandler(void)
   /* USER CODE END SUBGHZ_Radio_IRQn 1 */
 }
 
+
+/* STM32WL driver specific functions */
+void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
+{
+  /* USER CODE BEGIN SUBGHZ_MspInit 0 */
+    core_util_critical_section_enter();
+  /* USER CODE END SUBGHZ_MspInit 0 */
+    /* SUBGHZ clock enable */
+    __HAL_RCC_SUBGHZSPI_CLK_ENABLE();
+  
+    /* SUBGHZ interrupt Init */
+    NVIC_SetVector(SUBGHZ_Radio_IRQn, (uint32_t)SUBGHZ_Radio_IRQHandler);
+    NVIC_EnableIRQ(SUBGHZ_Radio_IRQn);
+
+  /* USER CODE BEGIN SUBGHZ_MspInit 1 */
+    core_util_critical_section_exit();
+  /* USER CODE END SUBGHZ_MspInit 1 */
+}
 
 void STM32WL_LoRaRadio::RadioIrqProcess()
 {

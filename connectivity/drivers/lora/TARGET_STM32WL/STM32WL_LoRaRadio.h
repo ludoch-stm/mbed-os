@@ -306,6 +306,7 @@ public:
     void HAL_SUBGHZ_CADStatusCallback(void);
     void HAL_SUBGHZ_RxTxTimeoutCallback(void);
     
+
     
 private:
 
@@ -379,7 +380,9 @@ private:
     void configure_dio_irq(uint16_t irq_mask, uint16_t dio1_mask,
                            uint16_t dio2_mask, uint16_t dio3_mask);
     void cold_start_wakeup();
-
+    
+//    void SUBGHZ_Radio_IRQHandler(void);
+    
 private:
     uint8_t _active_modem;
     uint8_t _standby_mode;
