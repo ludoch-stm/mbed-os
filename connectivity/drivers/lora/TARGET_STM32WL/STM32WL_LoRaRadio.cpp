@@ -39,36 +39,16 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "mbed_wait_api.h"
 #include "Timer.h"
 #include "STM32WL_LoRaRadio.h"
-
+#include "radio_board_if.h"
 #include "stm32wlxx_hal_subghz.h"
-
-/* RF switch configuration */
-#define RF_SW_CTRL3_PIN                          GPIO_PIN_3
-#define RF_SW_CTRL3_GPIO_PORT                    GPIOC
-#define RF_SW_CTRL3_GPIO_CLK_ENABLE()            __HAL_RCC_GPIOC_CLK_ENABLE()
-#define RF_SW_CTRL3_GPIO_CLK_DISABLE()           __HAL_RCC_GPIOC_CLK_DISABLE()
-
-#define RF_SW_CTRL1_PIN                          GPIO_PIN_4
-#define RF_SW_CTRL1_GPIO_PORT                    GPIOC
-#define RF_SW_CTRL1_GPIO_CLK_ENABLE()            __HAL_RCC_GPIOC_CLK_ENABLE()
-#define RF_SW_RX_GPIO_CLK_DISABLE()              __HAL_RCC_GPIOC_CLK_DISABLE()
-
-#define RF_SW_CTRL2_PIN                          GPIO_PIN_5
-#define RF_SW_CTRL2_GPIO_PORT                    GPIOC
-#define RF_SW_CTRL2_GPIO_CLK_ENABLE()            __HAL_RCC_GPIOC_CLK_ENABLE()
-#define RF_SW_CTRL2_GPIO_CLK_DISABLE()           __HAL_RCC_GPIOC_CLK_DISABLE()
-
-#define RF_TCXO_VCC_PIN                          GPIO_PIN_0
-#define RF_TCXO_VCC_GPIO_PORT                    GPIOB
-#define RF_TCXO_VCC_CLK_ENABLE()                 __HAL_RCC_GPIOB_CLK_ENABLE()
-#define RF_TCXO_VCC_CLK_DISABLE()                __HAL_RCC_GPIOB_CLK_DISABLE()
 
 SUBGHZ_HandleTypeDef hsubghz;
 
+
 #if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_REGULATOR_MODE == 1
-	uint8_t regulator_mode = 1;
+	uint8_t regulator_mode = USE_DCDC;
 #else
-	uint8_t regulator_mode = 0;
+	uint8_t regulator_mode = USE_LDO;
 #endif
 #if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_CRYSTAL_SELECT_MODE == 1
   uint8_t _crystal_select  = 1;
@@ -346,31 +326,29 @@ static void RadioIrqProcess()
 
     if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE) {
       STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback();
-//      printf("TX complete\n");
     }
 
     if ((irq_status & IRQ_RX_DONE) == IRQ_RX_DONE) {
       STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback();
-//      printf("RX complete\n");
     }
 
     if ((irq_status & IRQ_CAD_DONE) == IRQ_CAD_DONE) {
       STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback();
-//      printf("CAD complete\n");
     }
 
     if ((irq_status & IRQ_RX_TX_TIMEOUT) == IRQ_RX_TX_TIMEOUT) {
       STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback();
-//      printf("RX/TX timeout\n");
     }
 }
-
+/* ----- */
 /* HAL_SUBGHz Callbacks definitions */ 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
 {
-  if (_radio_events->tx_done) {
-            _radio_events->tx_done();
-        }
+  if (_radio_events->tx_done) 
+    {
+       _radio_events->tx_done();
+     //  printf("\r\n TX complete\r\n");
+    }
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
@@ -397,7 +375,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
 
       _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
    }
-
+  // printf("\r\n RX complete\r\n");
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_CRCErrorCallback (void)
@@ -416,8 +394,8 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback(void)
     {
       _radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
                                     == IRQ_CAD_ACTIVITY_DETECTED);
-        }
-
+    }
+    //printf("\r\n CAD complete\r\n");
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
@@ -430,27 +408,137 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
   {
     _radio_events->rx_timeout();
   }
+  //printf("\r\n RX/TX timeout\r\n");
 }
 
-// void HAL_SUBGHZ_HeaderErrorCallback(SUBGHZ_HandleTypeDef *hsubghz)
-// {
-    // RadioOnDioIrqCb( IRQ_HEADER_ERROR );
-// }
+/* ----- */
+/* HAL_SUBGHz Callbacks definitions END */
 
-// void HAL_SUBGHZ_PreambleDetectedCallback(SUBGHZ_HandleTypeDef *hsubghz)
-// {
-    // RadioOnDioIrqCb( IRQ_PREAMBLE_DETECTED );
-// }
+/* STM32WL specific BSP Nucleo board functions */
+void STM32WL_LoRaRadio::SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx )
+{
+    RBI_Switch_TypeDef state = RBI_SWITCH_RX;
 
-// void HAL_SUBGHZ_SyncWordValidCallback(SUBGHZ_HandleTypeDef *hsubghz)
-// {
-    // RadioOnDioIrqCb( IRQ_SYNCWORD_VALID );
-// }
+    if (rxtx == RFSWITCH_TX)
+    {
+        if (paSelect == RFO_LP)
+        {
+            state = RBI_SWITCH_RFO_LP;
+            Radio_SMPS_Set(SMPS_DRIVE_SETTING_MAX);
+        }
+        if (paSelect == RFO_HP)
+        {
+            state = RBI_SWITCH_RFO_HP;
+        }
+    }
+    else
+    {
+        if (rxtx == RFSWITCH_RX)
+        {
+            state = RBI_SWITCH_RX;
+        }
+    }
+    RBI_ConfigRFSwitch(state);
+}
 
-// void HAL_SUBGHZ_HeaderValidCallback(SUBGHZ_HandleTypeDef *hsubghz)
-// {
-    // RadioOnDioIrqCb( IRQ_HEADER_VALID );
-// }
+uint8_t STM32WL_LoRaRadio::SUBGRF_SetRfTxPower( int8_t power ) 
+{
+    uint8_t paSelect= RFO_LP;
+
+    int32_t TxConfig = RBI_GetTxConfig();
+
+    switch (TxConfig)
+    {
+        case RBI_CONF_RFO_LP_HP:
+        {
+            if (power > 15)
+            {
+                paSelect = RFO_HP;
+            }
+            else
+            {
+                paSelect = RFO_LP;
+            }
+            break;
+        }
+        case RBI_CONF_RFO_LP:
+        {
+            paSelect = RFO_LP;
+            break;
+        }
+        case RBI_CONF_RFO_HP:
+        {
+            paSelect = RFO_HP;
+            break;
+        }
+        default:
+            break;
+    }
+
+    SUBGRF_SetTxParams( paSelect, power, RADIO_RAMP_40_US );
+
+    return paSelect;
+}
+
+
+void STM32WL_LoRaRadio::SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime ) 
+{
+    uint8_t buf[2];
+
+    if( paSelect == RFO_LP )
+    {
+        if( power == 15 )
+        {
+            set_pa_config( 0x06, 0x00, 0x01, 0x01 );
+        }
+        else
+        {
+            set_pa_config( 0x04, 0x00, 0x01, 0x01 );
+        }
+        if( power >= 14 )
+        {
+            power = 14;
+        }
+        else if( power < -17 )
+        {
+            power = -17;
+        }
+        write_to_register( REG_OCP, 0x18 ); // current max is 80 mA for the whole device
+    }
+    else // rfo_hp
+    {
+        // WORKAROUND - Better Resistance of the SX1262 Tx to Antenna Mismatch, see DS_SX1261-2_V1.2 datasheet chapter 15.2
+        // RegTxClampConfig = @address 0x08D8
+        write_to_register( REG_TX_CLAMP, read_register( REG_TX_CLAMP ) | ( 0x0F << 1 ) );
+        // WORKAROUND END
+
+        set_pa_config( 0x04, 0x07, 0x00, 0x01 );
+        if( power > 22 )
+        {
+            power = 22;
+        }
+        else if( power < -9 )
+        {
+            power = -9;
+        }
+        write_to_register( REG_OCP, 0x38 ); // current max 160mA for the whole device
+    }
+    buf[0] = power;
+    buf[1] = ( uint8_t )rampTime;
+    write_opmode_command( RADIO_SET_TXPARAMS, buf, 2 );
+}
+
+void STM32WL_LoRaRadio::Radio_SMPS_Set(uint8_t level)
+{
+  if ( 1U == RBI_IsDCDC() )
+  {
+    uint8_t modReg;
+    modReg= read_register(SUBGHZ_SMPSC2R);
+    modReg&= (~SMPS_DRV_MASK);
+    write_to_register(SUBGHZ_SMPSC2R, modReg | level);
+  }
+}
+/* End STM32WL specific HW defs */
 
 void STM32WL_LoRaRadio::calibrate_image(uint32_t freq)
 {
@@ -547,6 +635,9 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 		
 	_radio_events = events;
   
+//    SubgRf.RxContinuous = false;
+   _tx_timeout = 0;
+   _rx_timeout = 0;
   
   //call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
 	error_value = HAL_SUBGHZ_Init(&hsubghz);
@@ -555,10 +646,15 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
     {
       error_handler(error_value);
     }
-	  // DBG LCH: check if necessary
+    
 	  // this is a POR sequence
     cold_start_wakeup();
-
+    
+    SUBGRF_SetTxParams(RFO_LP, 0, RADIO_RAMP_200_US);
+	
+    /* ST_WORKAROUND_BEGIN: Sleep radio */
+    sleep();
+	/* ST_WORKAROUND_END */
 }
 
 
@@ -576,32 +672,10 @@ void STM32WL_LoRaRadio::cold_start_wakeup()
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
     }
     
-    //DBG LCH: clean
-    // set_dio2_as_rfswitch_ctrl(true);
+
     /* Init RF Switch */
-	// BSP_RADIO_Init();
-
-  /* Enable the Radio Switch Clock */
-  RF_SW_CTRL3_GPIO_CLK_ENABLE();
-
-  /* Configure the Radio Switch pin */
-  gpio_init_structure.Pin   = RF_SW_CTRL1_PIN;
-  gpio_init_structure.Mode  = GPIO_MODE_OUTPUT_PP;
-  gpio_init_structure.Pull  = GPIO_NOPULL;
-  gpio_init_structure.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-
-  HAL_GPIO_Init(RF_SW_CTRL1_GPIO_PORT, &gpio_init_structure);
-
-  gpio_init_structure.Pin = RF_SW_CTRL2_PIN;
-  HAL_GPIO_Init(RF_SW_CTRL2_GPIO_PORT, &gpio_init_structure);
-
-  gpio_init_structure.Pin = RF_SW_CTRL3_PIN;
-  HAL_GPIO_Init(RF_SW_CTRL3_GPIO_PORT, &gpio_init_structure);
-
-  HAL_GPIO_WritePin(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(RF_SW_CTRL3_GPIO_PORT, RF_SW_CTRL3_PIN, GPIO_PIN_RESET);
-	
+    RBI_Init();
+    
     _operation_mode = MODE_STDBY_RC;
 
     set_modem(_active_modem);
@@ -695,16 +769,25 @@ void STM32WL_LoRaRadio::wakeup()
 
 void STM32WL_LoRaRadio::sleep(void)
 {
-    // warm start, power consumption 600 nA
-    uint8_t sleep_state = 0x04;
-    _operation_mode = MODE_SLEEP;
+
+
 
 #if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_SLEEP_MODE == 1
     // cold start, power consumption 160 nA
     sleep_state = 0x00;
 #endif
+  
+  /* switch the antenna OFF by SW */
+    RBI_ConfigRFSwitch(RBI_SWITCH_OFF);
+    Radio_SMPS_Set(SMPS_DRIVE_SETTING_DEFAULT);
 
+
+  //DBG LCH:check value  
+  // warm start, power consumption 600 nA
+    uint8_t sleep_state = 0x04;
     write_opmode_command(RADIO_SET_SLEEP, &sleep_state, 1);
+  
+    _operation_mode = MODE_SLEEP;
     ThisThread::sleep_for(2);
 }
 
@@ -947,8 +1030,9 @@ void STM32WL_LoRaRadio::set_tx_config(radio_modems_t modem,
 
             break;
     }
-
+    _antSwitchPaSelect = SUBGRF_SetRfTxPower( power );
     _tx_power = power;
+    
     _tx_timeout = timeout;
 }
 
@@ -1099,6 +1183,15 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
                       IRQ_RADIO_NONE,
                       IRQ_RADIO_NONE);
 
+     /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
+    /* Set DBG pin */
+//    DBG_GPIO_RADIO_TX(SET);
+
+    /* Set RF switch */
+    SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_TX);
+    /* ST_WORKAROUND_END */
+
+  
     set_modulation_params(&_mod_params);
     set_packet_params(&_packet_params);
 
@@ -1146,12 +1239,20 @@ void STM32WL_LoRaRadio::receive(void)
         set_packet_params(&_packet_params);
     }
 
-    uint8_t buf[3];
 
+    /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
+    /* Set DBG pin */
+//    DBG_GPIO_RADIO_RX(SET);
+
+    /* RF switch configuration */
+    SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
+    /* ST_WORKAROUND_END */
+    
 #if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_BOOST_RX
     write_to_register(REG_RX_GAIN, 0x96);
 #endif
-
+    
+    uint8_t buf[3];
     buf[0] = (uint8_t)((_rx_timeout >> 16) & 0xFF);
     buf[1] = (uint8_t)((_rx_timeout >> 8) & 0xFF);
     buf[2] = (uint8_t)(_rx_timeout & 0xFF);
@@ -1166,34 +1267,7 @@ void STM32WL_LoRaRadio::set_tx_power(int8_t power)
 {
     uint8_t buf[2];
 
-    // if (get_device_variant() == SX1261) {
-    //     if (power >= 14) {
-    //         set_pa_config(0x04, 0x00, 0x01, 0x01);
-    //         power = 14;
-    //     } else if (power < 14) {
-    //         set_pa_config(0x01, 0x00, 0x01, 0x01);
-    //     }
-
-    //     if (power < -3) {
-    //         power = -3;
-    //     }
-    //     write_to_register(REG_OCP, 0x18); // current max is 80 mA for the whole device
-    // } else {
-    //     // sx1262 or sx1268
-    //     if (power > 22) {
-    //         power = 22;
-    //     } else if (power < -3) {
-    //         power = -3;
-    //     }
-
-    //     if (power <= 14) {
-    //         set_pa_config(0x02, 0x02, 0x00, 0x01);
-    //     } else {
-    //         set_pa_config(0x04, 0x07, 0x00, 0x01);
-    //     }
-
-    //     write_to_register(REG_OCP, 0x38); // current max 160mA for the whole device
-    // }
+    SUBGRF_SetRfTxPower(power);
 
     buf[0] = power;
 

@@ -382,7 +382,10 @@ private:
                            uint16_t dio2_mask, uint16_t dio3_mask);
     void cold_start_wakeup();
     
-//    void SUBGHZ_Radio_IRQHandler(void);
+    void SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx );
+    uint8_t SUBGRF_SetRfTxPower( int8_t power );
+    void SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime );
+    void Radio_SMPS_Set(uint8_t level);
     
 private:
 
@@ -393,6 +396,7 @@ private:
     uint32_t _rx_timeout;
     uint8_t _rx_timeout_in_symbols;
     int8_t _tx_power;
+    uint8_t _antSwitchPaSelect;
     bool _image_calibrated;
     bool _force_image_calibration;
     bool _network_mode_public;
@@ -401,6 +405,9 @@ private:
     // for radio module
     modulation_params_t _mod_params;
     packet_params_t _packet_params;
+
+    RFState_t rfstate;
+
 };
 
 
