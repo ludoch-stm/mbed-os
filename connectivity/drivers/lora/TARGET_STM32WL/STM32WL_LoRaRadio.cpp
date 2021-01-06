@@ -42,15 +42,15 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "radio_board_if.h"
 #include "stm32wlxx_hal_subghz.h"
 
-SUBGHZ_HandleTypeDef hsubghz;
 
 
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_REGULATOR_MODE == 1
+
+#if MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE == 1
 	uint8_t regulator_mode = USE_DCDC;
 #else
 	uint8_t regulator_mode = USE_LDO;
 #endif
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_CRYSTAL_SELECT_MODE == 1
+#if MBED_CONF_STM32WL_LORA_DRIVER_CRYSTAL_SELECT== 1
   uint8_t _crystal_select  = 1;
 #else
 	uint8_t _crystal_select = 0;
@@ -62,7 +62,9 @@ static void RadioIrqProcess();
 
 // Structure containing function pointers to the stack callbacks
 static radio_events_t *_radio_events;
-//SUBGHZ_HandleTypeDef hsubghz;
+
+//SUBGHZ handle Structure definition
+SUBGHZ_HandleTypeDef hsubghz;
  
 // Data buffer used for both TX and RX
 // Size of this buffer is configurable via Mbed config system
@@ -81,6 +83,12 @@ using namespace rtos;
  */
 #define SIG_INTERRUPT        0x02
 #endif
+
+
+/**
+  * @brief voltage of vdd tcxo.
+  */
+#define TCXO_CTRL_VOLTAGE           TCXO_CTRL_1_7V
 
 /*!
  * FSK bandwidth definition
@@ -290,7 +298,6 @@ static void SUBGHZ_Radio_IRQHandler(void)
   /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
 
   /* USER CODE END SUBGHZ_Radio_IRQn 0 */
-//  HAL_SUBGHZ_IRQHandler(&hsubghz);
   RadioIrqProcess();
   /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
 
@@ -318,7 +325,6 @@ void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
 
 static void RadioIrqProcess()
 {
-  // HAL_SUBGHZ_IRQHandler(&hsubghz)
   radio_irq_masks_t irq_status;
   
   irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
@@ -347,7 +353,6 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
   if (_radio_events->tx_done) 
     {
        _radio_events->tx_done();
-     //  printf("\r\n TX complete\r\n");
     }
 }
 
@@ -375,7 +380,6 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
 
       _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
    }
-  // printf("\r\n RX complete\r\n");
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_CRCErrorCallback (void)
@@ -395,7 +399,6 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback(void)
       _radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
                                     == IRQ_CAD_ACTIVITY_DETECTED);
     }
-    //printf("\r\n CAD complete\r\n");
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
@@ -408,7 +411,6 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
   {
     _radio_events->rx_timeout();
   }
-  //printf("\r\n RX/TX timeout\r\n");
 }
 
 /* ----- */
@@ -568,7 +570,7 @@ void STM32WL_LoRaRadio::calibrate_image(uint32_t freq)
 
 void STM32WL_LoRaRadio::set_channel(uint32_t frequency)
 {
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_SLEEP_MODE == 1
+#if MBED_CONF_STM32WL_LORA_DRIVER_SLEEP_MODE == 1
     // At this point, we are not sure what is the Modem type, set both
     _mod_params.params.lora.operational_frequency = frequency;
     _mod_params.params.gfsk.operational_frequency = frequency;
@@ -600,7 +602,7 @@ void STM32WL_LoRaRadio::standby(void)
         return;
     }
 
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_STANDBY_MODE == 1
+#if MBED_CONF_STM32WL_LORA_DRIVER_STANDBY_MODE == 1
     uint8_t standby_mode = 1;
 #else
 	uint8_t standby_mode = 0;
@@ -615,7 +617,7 @@ void STM32WL_LoRaRadio::standby(void)
 }
 
 
-void STM32WL_LoRaRadio::set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage,
+void STM32WL_LoRaRadio::SUBGRF_SetTcxoMode(radio_TCXO_ctrl_voltage_t voltage,
                                              uint32_t timeout)
 {
     uint8_t buf[4];
@@ -665,9 +667,10 @@ void STM32WL_LoRaRadio::cold_start_wakeup()
     write_opmode_command(RADIO_SET_REGULATORMODE, &regulator_mode, 1);
     set_buffer_base_addr(0x00, 0x00);
 
-    if (_crystal_select == 0) {
+    if (_crystal_select == 1) {
         calibration_params_t calib_param;
-        set_dio3_as_tcxo_ctrl(TCXO_CTRL_1_7V, 320); //5 ms
+        SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, RBI_GetWakeUpTime() << 6); //5 ms
+      
         calib_param.value = 0x7F;
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
     }
@@ -757,7 +760,7 @@ void STM32WL_LoRaRadio::wakeup()
 //        wait_us(100);
 //        _chip_select = 1;
 //        //wait_us(100);
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_SLEEP_MODE == 1
+#if MBED_CONF_STM32WL_LORA_DRIVER_SLEEP_MODE == 1
         wait_us(3500);
         // whenever we wakeup from Cold sleep state, we need to perform
         // image calibration
@@ -772,7 +775,7 @@ void STM32WL_LoRaRadio::sleep(void)
 
 
 
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_SLEEP_MODE == 1
+#if MBED_CONF_STM32WL_LORA_DRIVER_SLEEP_MODE == 1
     // cold start, power consumption 160 nA
     sleep_state = 0x00;
 #endif
@@ -1248,7 +1251,7 @@ void STM32WL_LoRaRadio::receive(void)
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
     /* ST_WORKAROUND_END */
     
-#if MBED_CONF_NUCLEO_WL55JC_LORA_DRIVER_BOOST_RX
+#if MBED_CONF_STM32WL_LORA_DRIVER_BOOST_RX
     write_to_register(REG_RX_GAIN, 0x96);
 #endif
     

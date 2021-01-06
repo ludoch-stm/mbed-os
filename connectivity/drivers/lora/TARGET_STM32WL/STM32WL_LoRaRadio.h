@@ -327,9 +327,6 @@ private:
 	  mbed::DigitalInOut _rf_switch_ctrl3;
 	
 
-
-
-
 #ifdef MBED_CONF_RTOS_PRESENT
     // Thread to handle interrupts
     rtos::Thread irq_thread;
@@ -341,7 +338,7 @@ private:
     void wakeup();
 
     // void set_dio2_as_rfswitch_ctrl(uint8_t enable);
-     void set_dio3_as_tcxo_ctrl(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
+    void SUBGRF_SetTcxoMode(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
     void set_device_ready(void);
     int8_t get_rssi();
     uint8_t get_fsk_bw_reg_val(uint32_t bandwidth);
