@@ -31,7 +31,6 @@ extern "C" {
   
   
 /* Includes ------------------------------------------------------------------*/
-//#include "platform.h"
 #include "stm32wlxx_hal.h"
   
 /* USER CODE BEGIN include */

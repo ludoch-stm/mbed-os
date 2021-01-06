@@ -40,10 +40,19 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "Timer.h"
 #include "STM32WL_LoRaRadio.h"
 #include "radio_board_if.h"
+#include "sys_debug.h"
 #include "stm32wlxx_hal_subghz.h"
 
 
+/**
+  * @brief Set RX pin to high or low level
+  */
+#define DBG_GPIO_RADIO_RX(set_rst) DBG_GPIO_##set_rst##_LINE(DGB_LINE1_PORT, DGB_LINE1_PIN);
 
+/**
+  * @brief Set TX pin to high or low level
+  */
+#define DBG_GPIO_RADIO_TX(set_rst) DBG_GPIO_##set_rst##_LINE(DGB_LINE2_PORT, DGB_LINE2_PIN);
 
 #if MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE == 1
 	uint8_t regulator_mode = USE_DCDC;
@@ -353,6 +362,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
   if (_radio_events->tx_done) 
     {
        _radio_events->tx_done();
+      
+     /* Reset DBG pin */
+    DBG_GPIO_RADIO_TX(RST);
+
     }
 }
 
@@ -379,6 +392,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
       }
 
       _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
+      
+      /* Reset DBG pin */
+      DBG_GPIO_RADIO_RX(RST);
+
    }
 }
 
@@ -406,10 +423,18 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
   if ((_radio_events->tx_timeout) && (_operation_mode == MODE_TX)) 
   {
     _radio_events->tx_timeout();
+    
+   /* Reset TX DBG pin */
+    DBG_GPIO_RADIO_TX(RST);
+
   } 
   else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX)) 
   {
     _radio_events->rx_timeout();
+    
+    /* Reset RX DBG pin */
+    DBG_GPIO_RADIO_RX(RST);
+
   }
 }
 
@@ -654,9 +679,12 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
     
     SUBGRF_SetTxParams(RFO_LP, 0, RADIO_RAMP_200_US);
 	
+     /* Configure the debug mode*/
+    DBG_Init();
+
     /* ST_WORKAROUND_BEGIN: Sleep radio */
     sleep();
-	/* ST_WORKAROUND_END */
+	  /* ST_WORKAROUND_END */
 }
 
 
@@ -1188,7 +1216,7 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
 
      /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
-//    DBG_GPIO_RADIO_TX(SET);
+    DBG_GPIO_RADIO_TX(SET);
 
     /* Set RF switch */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_TX);
@@ -1245,7 +1273,7 @@ void STM32WL_LoRaRadio::receive(void)
 
     /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
-//    DBG_GPIO_RADIO_RX(SET);
+    DBG_GPIO_RADIO_RX(SET);
 
     /* RF switch configuration */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
