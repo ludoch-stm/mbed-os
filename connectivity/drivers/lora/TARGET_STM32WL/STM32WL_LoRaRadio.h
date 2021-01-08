@@ -57,12 +57,27 @@ SPDX-License-Identifier: BSD-3-Clause
 #define MAX_DATA_BUFFER_SIZE_STM32WL                        255
 #endif
 
+/* STM32WL Nucleo antenna switch defines */
+#define RBI_CONF_RFO_LP_HP  0
+#define RBI_CONF_RFO_LP     1
+#define RBI_CONF_RFO_HP     2
+
+typedef enum
+{
+  RBI_SWITCH_OFF    = 0,
+  RBI_SWITCH_RX     = 1,
+  RBI_SWITCH_RFO_LP = 2,
+  RBI_SWITCH_RFO_HP = 3,
+} RBI_Switch_TypeDef;
+
 class STM32WL_LoRaRadio : public LoRaRadio {
 
 public:
     STM32WL_LoRaRadio( PinName rf_switch_ctrl1,
                        PinName rf_switch_ctrl2,
-                       PinName rf_switch_ctrl3);
+                       PinName rf_switch_ctrl3,
+                       PinName rf_dbg_rx,
+                       PinName rf_dbg_tx);
 
     virtual ~STM32WL_LoRaRadio();
 
@@ -317,7 +332,8 @@ public:
     static void get_packet_status(packet_status_t *pkt_status);
     static uint8_t get_modem();
     static uint8_t read_register(uint16_t addr);
-    
+//    void setTXPin(int32_t value);
+
    
 private:
 
@@ -325,7 +341,8 @@ private:
     mbed::DigitalInOut _rf_switch_ctrl1;
     mbed::DigitalInOut _rf_switch_ctrl2;
 	  mbed::DigitalInOut _rf_switch_ctrl3;
-	
+    mbed::DigitalInOut _rf_dbg_rx;
+		mbed::DigitalInOut _rf_dbg_tx;
 
 #ifdef MBED_CONF_RTOS_PRESENT
     // Thread to handle interrupts
@@ -383,6 +400,7 @@ private:
     uint8_t SUBGRF_SetRfTxPower( int8_t power );
     void SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime );
     void Radio_SMPS_Set(uint8_t level);
+    void set_antenna_switch(RBI_Switch_TypeDef state);
     
 private:
 
@@ -398,6 +416,8 @@ private:
     bool _force_image_calibration;
     bool _network_mode_public;
 
+    static PinName rf_dbg_rx;
+    static PinName rf_dbg_tx;
     // Structure containing all user and network specified settings
     // for radio module
     modulation_params_t _mod_params;

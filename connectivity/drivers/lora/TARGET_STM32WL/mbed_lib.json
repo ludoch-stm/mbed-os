@@ -21,9 +21,13 @@
         	"help": "Default: STDBY_RC = 0, STDBY_XOSC = 1",
         	"value": 0
         },
-	"crystal_select": {
+	    "crystal_select": {
         	"help": "Default: Internal XO = 0, TCXO = 1",
         	"value": 1
+        },
+	    "rf_switch_config": {
+        	"help": "Default: CONF_RFO_LP_HP = 0, CONF_RFO_LP = 1, CONF_RFO_HP = 2",
+        	"value": 0
         }
     }
 }

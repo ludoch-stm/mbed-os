@@ -39,31 +39,19 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "mbed_wait_api.h"
 #include "Timer.h"
 #include "STM32WL_LoRaRadio.h"
-#include "radio_board_if.h"
-#include "sys_debug.h"
 #include "stm32wlxx_hal_subghz.h"
 
-
-/**
-  * @brief Set RX pin to high or low level
-  */
-#define DBG_GPIO_RADIO_RX(set_rst) DBG_GPIO_##set_rst##_LINE(DGB_LINE1_PORT, DGB_LINE1_PIN);
-
-/**
-  * @brief Set TX pin to high or low level
-  */
-#define DBG_GPIO_RADIO_TX(set_rst) DBG_GPIO_##set_rst##_LINE(DGB_LINE2_PORT, DGB_LINE2_PIN);
 
 #if MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE == 1
 	uint8_t regulator_mode = USE_DCDC;
 #else
 	uint8_t regulator_mode = USE_LDO;
 #endif
-#if MBED_CONF_STM32WL_LORA_DRIVER_CRYSTAL_SELECT== 1
-  uint8_t _crystal_select  = 1;
-#else
-	uint8_t _crystal_select = 0;
-#endif
+
+uint8_t crystal_select  = MBED_CONF_STM32WL_LORA_DRIVER_CRYSTAL_SELECT;
+
+uint8_t board_rf_switch_config  = MBED_CONF_STM32WL_LORA_DRIVER_RF_SWITCH_CONFIG;
+
 
 static void SUBGHZ_Radio_IRQHandler(void);
 // Handler called by thread in response to signal directly
@@ -142,11 +130,16 @@ const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.0
 
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
 									 PinName rf_switch_ctrl2,
-									 PinName rf_switch_ctrl3)
+									 PinName rf_switch_ctrl3,
+                   PinName rf_dbg_rx,
+                   PinName rf_dbg_tx
+)
     :
         _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
         _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
-        _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0)
+        _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0),
+        _rf_dbg_rx(rf_dbg_rx, PIN_OUTPUT, PullNone, 0),
+        _rf_dbg_tx(rf_dbg_tx, PIN_OUTPUT, PullNone, 0)
 #ifdef MBED_CONF_RTOS_PRESENT
     , irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL")
 #endif
@@ -299,6 +292,14 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
 }
 
 
+
+//void STM32WL_LoRaRadio::setTXPin(int32_t value)
+//{
+//    if (rf_dbg_tx != NC) {
+//        _rf_dbg_tx = value;
+//    }
+//}
+
 /**
   * @brief This function handles SUBGHZ Radio Interrupt.
   */
@@ -364,7 +365,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
        _radio_events->tx_done();
       
      /* Reset DBG pin */
-    DBG_GPIO_RADIO_TX(RST);
+    //DBG_GPIO_RADIO_TX(RST);
+//    if (rf_dbg_tx != NC) {
+//        _rf_dbg_tx = 0;
+//    }
 
     }
 }
@@ -394,8 +398,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
       _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
       
       /* Reset DBG pin */
-      DBG_GPIO_RADIO_RX(RST);
-
+ //     DBG_GPIO_RADIO_RX(RST);
+//    if (rf_dbg_rx != NC) {
+//        _rf_dbg_rx = 0;
+//    }
    }
 }
 
@@ -418,6 +424,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback(void)
     }
 }
 
+
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
 {
   if ((_radio_events->tx_timeout) && (_operation_mode == MODE_TX)) 
@@ -425,7 +432,11 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
     _radio_events->tx_timeout();
     
    /* Reset TX DBG pin */
-    DBG_GPIO_RADIO_TX(RST);
+//    DBG_GPIO_RADIO_TX(RST);
+//    STM32WL_LoRaRadio::setTXPin(0);
+//    if (rf_dbg_tx != NC) {
+//        _rf_dbg_tx = 0;
+//    }
 
   } 
   else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX)) 
@@ -433,13 +444,16 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
     _radio_events->rx_timeout();
     
     /* Reset RX DBG pin */
-    DBG_GPIO_RADIO_RX(RST);
-
+ //   DBG_GPIO_RADIO_RX(RST);
+//    if (rf_dbg_rx != NC) {
+//        _rf_dbg_rx = 0;
+//    }
   }
 }
 
 /* ----- */
 /* HAL_SUBGHz Callbacks definitions END */
+
 
 /* STM32WL specific BSP Nucleo board functions */
 void STM32WL_LoRaRadio::SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx )
@@ -465,14 +479,14 @@ void STM32WL_LoRaRadio::SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx )
             state = RBI_SWITCH_RX;
         }
     }
-    RBI_ConfigRFSwitch(state);
+    set_antenna_switch(state);
 }
 
 uint8_t STM32WL_LoRaRadio::SUBGRF_SetRfTxPower( int8_t power ) 
 {
     uint8_t paSelect= RFO_LP;
 
-    int32_t TxConfig = RBI_GetTxConfig();
+    int32_t TxConfig = board_rf_switch_config;
 
     switch (TxConfig)
     {
@@ -557,13 +571,59 @@ void STM32WL_LoRaRadio::SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radi
 
 void STM32WL_LoRaRadio::Radio_SMPS_Set(uint8_t level)
 {
-  if ( 1U == RBI_IsDCDC() )
+  if ( 1U == regulator_mode )
   {
     uint8_t modReg;
     modReg= read_register(SUBGHZ_SMPSC2R);
     modReg&= (~SMPS_DRV_MASK);
     write_to_register(SUBGHZ_SMPSC2R, modReg | level);
   }
+}
+
+/**
+ * Sets up radio switch position according to the
+ * radio mode
+ */
+void STM32WL_LoRaRadio::set_antenna_switch(RBI_Switch_TypeDef state)
+{
+    // here we got to do ifdef for changing controls
+    // as some pins might be NC
+    switch (state) {
+        case RBI_SWITCH_OFF:
+            {
+               /* Turn off switch */
+               _rf_switch_ctrl3 = 0;
+               _rf_switch_ctrl1 = 0;
+               _rf_switch_ctrl2 = 0;
+               break;
+            }
+        case RBI_SWITCH_RX:
+            {
+               /*Turns On in Rx Mode the RF Switch */
+               _rf_switch_ctrl3 = 1;
+               _rf_switch_ctrl1 = 1;
+               _rf_switch_ctrl2 = 0;
+               break;
+            }
+        case RBI_SWITCH_RFO_LP:
+            {
+               /*Turns On in Tx Low Power the RF Switch */
+               _rf_switch_ctrl3 = 1;
+               _rf_switch_ctrl1 = 1;
+               _rf_switch_ctrl2 = 1;
+               break;
+            }                 
+        case RBI_SWITCH_RFO_HP:
+            {
+               /*Turns On in Tx High Power the RF Switch */
+               _rf_switch_ctrl3 = 1;
+               _rf_switch_ctrl1 = 0;
+               _rf_switch_ctrl2 = 1;
+               break;
+            }
+        default:
+            break;
+    }
 }
 /* End STM32WL specific HW defs */
 
@@ -679,9 +739,6 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
     
     SUBGRF_SetTxParams(RFO_LP, 0, RADIO_RAMP_200_US);
 	
-     /* Configure the debug mode*/
-    DBG_Init();
-
     /* ST_WORKAROUND_BEGIN: Sleep radio */
     sleep();
 	  /* ST_WORKAROUND_END */
@@ -695,17 +752,15 @@ void STM32WL_LoRaRadio::cold_start_wakeup()
     write_opmode_command(RADIO_SET_REGULATORMODE, &regulator_mode, 1);
     set_buffer_base_addr(0x00, 0x00);
 
-    if (_crystal_select == 1) {
+    if (crystal_select == 1) {
         calibration_params_t calib_param;
-        SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, RBI_GetWakeUpTime() << 6); //5 ms
+      //MBED_CONF_NUCLEO_WL55RC_WAKEUP_TIME <<6 : not defined
+        SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, MBED_CONF_LORA_WAKEUP_TIME << 7); //5 ms
       
         calib_param.value = 0x7F;
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
     }
     
-
-    /* Init RF Switch */
-    RBI_Init();
     
     _operation_mode = MODE_STDBY_RC;
 
@@ -809,7 +864,7 @@ void STM32WL_LoRaRadio::sleep(void)
 #endif
   
   /* switch the antenna OFF by SW */
-    RBI_ConfigRFSwitch(RBI_SWITCH_OFF);
+    set_antenna_switch(RBI_SWITCH_OFF);
     Radio_SMPS_Set(SMPS_DRIVE_SETTING_DEFAULT);
 
 
@@ -1216,8 +1271,11 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
 
      /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
-    DBG_GPIO_RADIO_TX(SET);
-
+//    DBG_GPIO_RADIO_TX(SET);
+//    if (rf_dbg_tx != NC) {
+//        _rf_dbg_tx = 1;
+//    }
+    
     /* Set RF switch */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_TX);
     /* ST_WORKAROUND_END */
@@ -1273,8 +1331,10 @@ void STM32WL_LoRaRadio::receive(void)
 
     /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
-    DBG_GPIO_RADIO_RX(SET);
-
+//    DBG_GPIO_RADIO_RX(SET);
+//    if (rf_dbg_rx != NC) {
+//        _rf_dbg_rx = 1;
+//    }
     /* RF switch configuration */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
     /* ST_WORKAROUND_END */
@@ -1302,7 +1362,7 @@ void STM32WL_LoRaRadio::set_tx_power(int8_t power)
 
     buf[0] = power;
 
-    if (_crystal_select == 0) {
+    if (crystal_select == 0) {
         // TCXO
         buf[1] = RADIO_RAMP_200_US;
     } else {
