@@ -332,8 +332,8 @@ public:
     static void get_packet_status(packet_status_t *pkt_status);
     static uint8_t get_modem();
     static uint8_t read_register(uint16_t addr);
-//    void setTXPin(int32_t value);
-
+    void setTXPin(int32_t value);
+    void setRXPin(int32_t value);
    
 private:
 

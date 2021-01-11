@@ -424,7 +424,7 @@ typedef enum {
     LORA_BW_007                             = 0,
 } lora_bandwidths_t;
 
-const uint8_t lora_bandwidhts [] = {LORA_BW_125, LORA_BW_250, LORA_BW_500};
+const uint8_t lora_bandwidths [] = {LORA_BW_125, LORA_BW_250, LORA_BW_500};
 
 /*!
  * \brief Represents the coding rate values for LoRa packet type
@@ -434,7 +434,7 @@ typedef enum {
     LORA_CR_4_6                             = 0x02,
     LORA_CR_4_7                             = 0x03,
     LORA_CR_4_8                             = 0x04,
-} lora_coding_tates_t;
+} lora_coding_states_t;
 
 /*!
  * \brief Represents the preamble length used to detect the packet on Rx side
@@ -604,7 +604,7 @@ typedef struct {
         struct {
             lora_spread_factors_t spreading_factor; //!< Spreading Factor for the LoRa modulation
             lora_bandwidths_t bandwidth;  //!< Bandwidth for the LoRa modulation
-            lora_coding_tates_t coding_rate; //!< Coding rate for the LoRa modulation
+            lora_coding_states_t coding_rate; //!< Coding rate for the LoRa modulation
             uint8_t low_datarate_optimization; //!< Indicates if the modem uses the low datarate optimization
             uint32_t operational_frequency;
         } lora;

@@ -21,13 +21,13 @@ Maintainer: Miguel Luis, Gregory Cristian & Gilbert Menth
 Copyright (c) 2019, Arm Limited and affiliates.
 
 SPDX-License-Identifier: BSD-3-Clause
-*/
+  */
 /**
   ******************************************************************************
   *
   *          Portions COPYRIGHT 2020 STMicroelectronics
   *
-  * @file    STM32WL_loRaRadio.c
+  * @file    STM32WL_LoRaRadio.c
   * @author  MCD Application Team
   * @brief   radio driver implementation
   ******************************************************************************
@@ -43,9 +43,9 @@ SPDX-License-Identifier: BSD-3-Clause
 
 
 #if MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE == 1
-	uint8_t regulator_mode = USE_DCDC;
+uint8_t regulator_mode = USE_DCDC;
 #else
-	uint8_t regulator_mode = USE_LDO;
+uint8_t regulator_mode = USE_LDO;
 #endif
 
 uint8_t crystal_select  = MBED_CONF_STM32WL_LORA_DRIVER_CRYSTAL_SELECT;
@@ -62,7 +62,7 @@ static radio_events_t *_radio_events;
 
 //SUBGHZ handle Structure definition
 SUBGHZ_HandleTypeDef hsubghz;
- 
+
 // Data buffer used for both TX and RX
 // Size of this buffer is configurable via Mbed config system
 // Default is 255 bytes
@@ -70,14 +70,14 @@ static uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];
 
 static uint8_t _operation_mode;
 static uint8_t _active_modem;
-    
+
 using namespace mbed;
 using namespace rtos;
 
 #ifdef MBED_CONF_RTOS_PRESENT
 /**
- * Signals
- */
+  * Signals
+  */
 #define SIG_INTERRUPT        0x02
 #endif
 
@@ -90,12 +90,14 @@ using namespace rtos;
 /*!
  * FSK bandwidth definition
  */
-typedef struct {
+typedef struct
+{
     uint32_t bandwidth;
     uint8_t  register_value;
 } fsk_bw_t;
 
-static const fsk_bw_t fsk_bandwidths[] = {
+static const fsk_bw_t fsk_bandwidths[] =
+{
     { 4800, 0x1F },
     { 5800, 0x17 },
     { 7300, 0x0F },
@@ -129,21 +131,21 @@ const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.0
 }; // 500 KHz
 
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
-									 PinName rf_switch_ctrl2,
-									 PinName rf_switch_ctrl3,
-                   PinName rf_dbg_rx,
-                   PinName rf_dbg_tx
-)
+                                     PinName rf_switch_ctrl2,
+                                     PinName rf_switch_ctrl3,
+                                     PinName rf_dbg_rx,
+                                     PinName rf_dbg_tx
+                                    )
     :
-        _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
-        _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
-        _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0),
-        _rf_dbg_rx(rf_dbg_rx, PIN_OUTPUT, PullNone, 0),
-        _rf_dbg_tx(rf_dbg_tx, PIN_OUTPUT, PullNone, 0)
+    _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
+    _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
+    _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0),
+    _rf_dbg_rx(rf_dbg_rx, PIN_OUTPUT, PullNone, 0),
+    _rf_dbg_tx(rf_dbg_tx, PIN_OUTPUT, PullNone, 0)
 #ifdef MBED_CONF_RTOS_PRESENT
     , irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL")
 #endif
-		
+
 {
     _radio_events = NULL;
     _image_calibrated = false;
@@ -160,16 +162,16 @@ STM32WL_LoRaRadio::~STM32WL_LoRaRadio()
 }
 
 /**
- * Acquire lock
- */
+  * Acquire lock
+  */
 void STM32WL_LoRaRadio::lock(void)
 {
     mutex.lock();
 }
 
 /**
- * Release lock
- */
+  * Release lock
+  */
 void STM32WL_LoRaRadio::unlock(void)
 {
     mutex.unlock();
@@ -177,15 +179,17 @@ void STM32WL_LoRaRadio::unlock(void)
 
 #ifdef MBED_CONF_RTOS_PRESENT
 /**
- * Thread task handling IRQs
- */
+  * Thread task handling IRQs
+  */
 void STM32WL_LoRaRadio::rf_irq_task(void)
 {
-    for (;;) {
+    for (;;)
+    {
         uint32_t flags = ThisThread::flags_wait_any(0x7FFFFFFF);
 
         lock();
-        if (flags & SIG_INTERRUPT) {
+        if (flags & SIG_INTERRUPT)
+        {
             irq_process_isr();
         }
         unlock();
@@ -195,13 +199,13 @@ void STM32WL_LoRaRadio::rf_irq_task(void)
 
 void STM32WL_LoRaRadio::error_handler(HAL_StatusTypeDef error)
 {
-  printf ("ERROR in STM32WL_loRaRadio.c : %d", error);
-  /* USER CODE BEGIN error_handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  while (1)
-  {
-  }
-  /* USER CODE END error_handler_Debug */
+    printf("ERROR in STM32WL_loRaRadio.c : %d", error);
+    /* USER CODE BEGIN error_handler_Debug */
+    /* User can add his own implementation to report the HAL error return state */
+    while (1)
+    {
+    }
+    /* USER CODE END error_handler_Debug */
 }
 
 void STM32WL_LoRaRadio::irq_process_isr()
@@ -234,9 +238,9 @@ void STM32WL_LoRaRadio::clear_irq_status(uint16_t irq)
 //       It needs to be hooked up to the stack (this API will need change
 //       and the stack will need changes too)
 bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
-                                             uint32_t freq,
-                                             int16_t rssi_threshold,
-                                             uint32_t max_carrier_sense_time)
+                                              uint32_t freq,
+                                              int16_t rssi_threshold,
+                                              uint32_t max_carrier_sense_time)
 {
     bool status = true;
     int16_t rssi = 0;
@@ -254,10 +258,12 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
     elapsed_time.start();
 
     // Perform carrier sense for maxCarrierSenseTime
-    while (elapsed_time.read_ms() < (int) max_carrier_sense_time) {
+    while (elapsed_time.read_ms() < (int) max_carrier_sense_time)
+    {
         rssi = get_rssi();
 
-        if (rssi > rssi_threshold) {
+        if (rssi > rssi_threshold)
+        {
             status = false;
             break;
         }
@@ -276,9 +282,9 @@ void STM32WL_LoRaRadio::start_cad(void)
 
 
 /**
- * TODO: The purpose of this API is unclear.
- *       Need to start an internal discussion.
- */
+  * TODO: The purpose of this API is unclear.
+  *       Need to start an internal discussion.
+  */
 bool STM32WL_LoRaRadio::check_rf_frequency(uint32_t frequency)
 {
     // Implement check. Currently all frequencies are supported ? What band ?
@@ -286,17 +292,25 @@ bool STM32WL_LoRaRadio::check_rf_frequency(uint32_t frequency)
 }
 
 void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
-                                              uint16_t time)
+                                               uint16_t time)
 {
     // This is useless. We even removed the support from our MAC layer.
 }
 
 
-
+///* Set Debug Line TX */
 //void STM32WL_LoRaRadio::setTXPin(int32_t value)
 //{
 //    if (rf_dbg_tx != NC) {
 //        _rf_dbg_tx = value;
+//    }
+//}
+
+///* Set Debug Line RX */
+//void STM32WL_LoRaRadio::setRXPin(int32_t value)
+//{
+//  if (rf_dbg_rx != NC) {
+//        _rf_dbg_rx = value;
 //    }
 //}
 
@@ -305,150 +319,147 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
   */
 static void SUBGHZ_Radio_IRQHandler(void)
 {
-  /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
+    /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
 
-  /* USER CODE END SUBGHZ_Radio_IRQn 0 */
-  RadioIrqProcess();
-  /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
+    /* USER CODE END SUBGHZ_Radio_IRQn 0 */
+    RadioIrqProcess();
+    /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
 
-  /* USER CODE END SUBGHZ_Radio_IRQn 1 */
+    /* USER CODE END SUBGHZ_Radio_IRQn 1 */
 }
 
 
 /* STM32WL driver specific functions */
-void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef* subghzHandle)
+void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef *subghzHandle)
 {
-  /* USER CODE BEGIN SUBGHZ_MspInit 0 */
+    /* USER CODE BEGIN SUBGHZ_MspInit 0 */
     core_util_critical_section_enter();
-  /* USER CODE END SUBGHZ_MspInit 0 */
+    /* USER CODE END SUBGHZ_MspInit 0 */
     /* SUBGHZ clock enable */
     __HAL_RCC_SUBGHZSPI_CLK_ENABLE();
-  
+
     /* SUBGHZ interrupt Init */
     NVIC_SetVector(SUBGHZ_Radio_IRQn, (uint32_t)SUBGHZ_Radio_IRQHandler);
     NVIC_EnableIRQ(SUBGHZ_Radio_IRQn);
 
-  /* USER CODE BEGIN SUBGHZ_MspInit 1 */
+    /* USER CODE BEGIN SUBGHZ_MspInit 1 */
     core_util_critical_section_exit();
-  /* USER CODE END SUBGHZ_MspInit 1 */
+    /* USER CODE END SUBGHZ_MspInit 1 */
 }
 
 static void RadioIrqProcess()
 {
-  radio_irq_masks_t irq_status;
-  
-  irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
-  STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+    radio_irq_masks_t irq_status;
 
-    if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE) {
-      STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback();
+    irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
+    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+
+    if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE)
+    {
+        STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback();
     }
 
-    if ((irq_status & IRQ_RX_DONE) == IRQ_RX_DONE) {
-      STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback();
+    if ((irq_status & IRQ_RX_DONE) == IRQ_RX_DONE)
+    {
+        STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback();
     }
 
-    if ((irq_status & IRQ_CAD_DONE) == IRQ_CAD_DONE) {
-      STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback();
+    if ((irq_status & IRQ_CAD_DONE) == IRQ_CAD_DONE)
+    {
+        STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback();
     }
 
-    if ((irq_status & IRQ_RX_TX_TIMEOUT) == IRQ_RX_TX_TIMEOUT) {
-      STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback();
+    if ((irq_status & IRQ_RX_TX_TIMEOUT) == IRQ_RX_TX_TIMEOUT)
+    {
+        STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback();
     }
 }
 /* ----- */
-/* HAL_SUBGHz Callbacks definitions */ 
+/* HAL_SUBGHz Callbacks definitions */
 void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
 {
-  if (_radio_events->tx_done) 
+    if (_radio_events->tx_done)
     {
-       _radio_events->tx_done();
-      
-     /* Reset DBG pin */
-    //DBG_GPIO_RADIO_TX(RST);
-//    if (rf_dbg_tx != NC) {
-//        _rf_dbg_tx = 0;
-//    }
+        _radio_events->tx_done();
+
+        /* Reset DBG pin */
+        //DBG_GPIO_RADIO_TX(RST);
+      //STM32WL_LoRaRadio::setTXPin(0);
 
     }
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
 {
-    if (_radio_events->rx_done) {
-      uint8_t offset = 0;
-      uint8_t payload_len = 0;
-      int16_t rssi = 0;
-      int8_t snr = 0;
-      packet_status_t pkt_status;
+    if (_radio_events->rx_done)
+    {
+        uint8_t offset = 0;
+        uint8_t payload_len = 0;
+        int16_t rssi = 0;
+        int8_t snr = 0;
+        packet_status_t pkt_status;
 
-      get_rx_buffer_status(&payload_len, &offset);
-      read_fifo(_data_buffer, payload_len, offset);
-      get_packet_status(&pkt_status);
-      if (pkt_status.modem_type == MODEM_FSK) 
-      {
-           rssi = pkt_status.params.gfsk.rssi_sync;
-      } 
-      else 
-      {
-         rssi = pkt_status.params.lora.rssi_pkt;
-         snr = pkt_status.params.lora.snr_pkt;
-      }
+        get_rx_buffer_status(&payload_len, &offset);
+        read_fifo(_data_buffer, payload_len, offset);
+        get_packet_status(&pkt_status);
+        if (pkt_status.modem_type == MODEM_FSK)
+        {
+            rssi = pkt_status.params.gfsk.rssi_sync;
+        }
+        else
+        {
+            rssi = pkt_status.params.lora.rssi_pkt;
+            snr = pkt_status.params.lora.snr_pkt;
+        }
 
-      _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
-      
-      /* Reset DBG pin */
- //     DBG_GPIO_RADIO_RX(RST);
-//    if (rf_dbg_rx != NC) {
-//        _rf_dbg_rx = 0;
-//    }
-   }
+        _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
+
+        /* Reset DBG pin */
+//     DBG_GPIO_RADIO_RX(RST);
+//   STM32WL_LoRaRadio::setRXPin(0);
+    }
 }
 
-void STM32WL_LoRaRadio::HAL_SUBGHZ_CRCErrorCallback (void)
+void STM32WL_LoRaRadio::HAL_SUBGHZ_CRCErrorCallback(void)
 {
-   if (_radio_events && _radio_events->rx_error) 
-     {
-       _radio_events->rx_error();
-     }
+    if (_radio_events && _radio_events->rx_error)
+    {
+        _radio_events->rx_error();
+    }
 }
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_CADStatusCallback(void)
 {
-  uint16_t irq_status = STM32WL_LoRaRadio::get_irq_status();
-  
-  if (_radio_events->cad_done) 
+    uint16_t irq_status = STM32WL_LoRaRadio::get_irq_status();
+
+    if (_radio_events->cad_done)
     {
-      _radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
-                                    == IRQ_CAD_ACTIVITY_DETECTED);
+        _radio_events->cad_done((irq_status & IRQ_CAD_ACTIVITY_DETECTED)
+                                == IRQ_CAD_ACTIVITY_DETECTED);
     }
 }
 
 
 void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
 {
-  if ((_radio_events->tx_timeout) && (_operation_mode == MODE_TX)) 
-  {
-    _radio_events->tx_timeout();
-    
-   /* Reset TX DBG pin */
+    if ((_radio_events->tx_timeout) && (_operation_mode == MODE_TX))
+    {
+        _radio_events->tx_timeout();
+
+        /* Reset TX DBG pin */
 //    DBG_GPIO_RADIO_TX(RST);
 //    STM32WL_LoRaRadio::setTXPin(0);
-//    if (rf_dbg_tx != NC) {
-//        _rf_dbg_tx = 0;
-//    }
 
-  } 
-  else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX)) 
-  {
-    _radio_events->rx_timeout();
-    
-    /* Reset RX DBG pin */
- //   DBG_GPIO_RADIO_RX(RST);
-//    if (rf_dbg_rx != NC) {
-//        _rf_dbg_rx = 0;
-//    }
-  }
+
+    }
+    else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX))
+    {
+        _radio_events->rx_timeout();
+
+        /* Reset RX DBG pin */
+//   DBG_GPIO_RADIO_RX(RST);
+//   STM32WL_LoRaRadio::setRXPin(0);
+    }
 }
 
 /* ----- */
@@ -456,7 +467,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
 
 
 /* STM32WL specific BSP Nucleo board functions */
-void STM32WL_LoRaRadio::SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx )
+void STM32WL_LoRaRadio::SUBGRF_SetSwitch(uint8_t paSelect, RFState_t rxtx)
 {
     RBI_Switch_TypeDef state = RBI_SWITCH_RX;
 
@@ -482,9 +493,9 @@ void STM32WL_LoRaRadio::SUBGRF_SetSwitch( uint8_t paSelect, RFState_t rxtx )
     set_antenna_switch(state);
 }
 
-uint8_t STM32WL_LoRaRadio::SUBGRF_SetRfTxPower( int8_t power ) 
+uint8_t STM32WL_LoRaRadio::SUBGRF_SetRfTxPower(int8_t power)
 {
-    uint8_t paSelect= RFO_LP;
+    uint8_t paSelect = RFO_LP;
 
     int32_t TxConfig = board_rf_switch_config;
 
@@ -516,111 +527,112 @@ uint8_t STM32WL_LoRaRadio::SUBGRF_SetRfTxPower( int8_t power )
             break;
     }
 
-    SUBGRF_SetTxParams( paSelect, power, RADIO_RAMP_40_US );
+    SUBGRF_SetTxParams(paSelect, power, RADIO_RAMP_40_US);
 
     return paSelect;
 }
 
 
-void STM32WL_LoRaRadio::SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime ) 
+void STM32WL_LoRaRadio::SUBGRF_SetTxParams(uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime)
 {
     uint8_t buf[2];
 
-    if( paSelect == RFO_LP )
+    if (paSelect == RFO_LP)
     {
-        if( power == 15 )
+        if (power == 15)
         {
-            set_pa_config( 0x06, 0x00, 0x01, 0x01 );
+            set_pa_config(0x06, 0x00, 0x01, 0x01);
         }
         else
         {
-            set_pa_config( 0x04, 0x00, 0x01, 0x01 );
+            set_pa_config(0x04, 0x00, 0x01, 0x01);
         }
-        if( power >= 14 )
+        if (power >= 14)
         {
             power = 14;
         }
-        else if( power < -17 )
+        else if (power < -17)
         {
             power = -17;
         }
-        write_to_register( REG_OCP, 0x18 ); // current max is 80 mA for the whole device
+        write_to_register(REG_OCP, 0x18);   // current max is 80 mA for the whole device
     }
     else // rfo_hp
     {
         // WORKAROUND - Better Resistance of the SX1262 Tx to Antenna Mismatch, see DS_SX1261-2_V1.2 datasheet chapter 15.2
         // RegTxClampConfig = @address 0x08D8
-        write_to_register( REG_TX_CLAMP, read_register( REG_TX_CLAMP ) | ( 0x0F << 1 ) );
+        write_to_register(REG_TX_CLAMP, read_register(REG_TX_CLAMP) | (0x0F << 1));
         // WORKAROUND END
 
-        set_pa_config( 0x04, 0x07, 0x00, 0x01 );
-        if( power > 22 )
+        set_pa_config(0x04, 0x07, 0x00, 0x01);
+        if (power > 22)
         {
             power = 22;
         }
-        else if( power < -9 )
+        else if (power < -9)
         {
             power = -9;
         }
-        write_to_register( REG_OCP, 0x38 ); // current max 160mA for the whole device
+        write_to_register(REG_OCP, 0x38);   // current max 160mA for the whole device
     }
     buf[0] = power;
-    buf[1] = ( uint8_t )rampTime;
-    write_opmode_command( RADIO_SET_TXPARAMS, buf, 2 );
+    buf[1] = (uint8_t)rampTime;
+    write_opmode_command(RADIO_SET_TXPARAMS, buf, 2);
 }
 
 void STM32WL_LoRaRadio::Radio_SMPS_Set(uint8_t level)
 {
-  if ( 1U == regulator_mode )
-  {
-    uint8_t modReg;
-    modReg= read_register(SUBGHZ_SMPSC2R);
-    modReg&= (~SMPS_DRV_MASK);
-    write_to_register(SUBGHZ_SMPSC2R, modReg | level);
-  }
+    if (1U == regulator_mode)
+    {
+        uint8_t modReg;
+        modReg = read_register(SUBGHZ_SMPSC2R);
+        modReg &= (~SMPS_DRV_MASK);
+        write_to_register(SUBGHZ_SMPSC2R, modReg | level);
+    }
 }
 
 /**
- * Sets up radio switch position according to the
- * radio mode
- */
+  * Sets up radio switch position according to the
+  * radio mode
+  */
 void STM32WL_LoRaRadio::set_antenna_switch(RBI_Switch_TypeDef state)
 {
     // here we got to do ifdef for changing controls
     // as some pins might be NC
-    switch (state) {
+    switch (state)
+    {
         case RBI_SWITCH_OFF:
-            {
-               /* Turn off switch */
-               _rf_switch_ctrl3 = 0;
-               _rf_switch_ctrl1 = 0;
-               _rf_switch_ctrl2 = 0;
-               break;
-            }
+        {
+            /* Turn off switch */
+            _rf_switch_ctrl3 = 0;
+            _rf_switch_ctrl1 = 0;
+            _rf_switch_ctrl2 = 0;
+            break;
+        }
         case RBI_SWITCH_RX:
-            {
-               /*Turns On in Rx Mode the RF Switch */
-               _rf_switch_ctrl3 = 1;
-               _rf_switch_ctrl1 = 1;
-               _rf_switch_ctrl2 = 0;
-               break;
-            }
+        {
+            /*Turns On in Rx Mode the RF Switch */
+            _rf_switch_ctrl3 = 1;
+            _rf_switch_ctrl1 = 1;
+            _rf_switch_ctrl2 = 0;
+            break;
+        }
         case RBI_SWITCH_RFO_LP:
-            {
-               /*Turns On in Tx Low Power the RF Switch */
-               _rf_switch_ctrl3 = 1;
-               _rf_switch_ctrl1 = 1;
-               _rf_switch_ctrl2 = 1;
-               break;
-            }                 
+        {
+            /*Turns On in Tx Low Power the RF Switch */
+            _rf_switch_ctrl3 = 1;
+            _rf_switch_ctrl1 = 1;
+            _rf_switch_ctrl2 = 1;
+            break;
+        }
         case RBI_SWITCH_RFO_HP:
-            {
-               /*Turns On in Tx High Power the RF Switch */
-               _rf_switch_ctrl3 = 1;
-               _rf_switch_ctrl1 = 0;
-               _rf_switch_ctrl2 = 1;
-               break;
-            }
+        {
+            /*Turns On in Tx High Power the RF Switch */
+            _rf_switch_ctrl3 = 1;
+            _rf_switch_ctrl1 = 0;
+            _rf_switch_ctrl2 = 1;
+            break;
+        }
         default:
             break;
     }
@@ -631,19 +643,28 @@ void STM32WL_LoRaRadio::calibrate_image(uint32_t freq)
 {
     uint8_t cal_freq[2];
 
-    if (freq > 900000000) {
+    if (freq > 900000000)
+    {
         cal_freq[0] = 0xE1;
         cal_freq[1] = 0xE9;
-    } else if (freq > 850000000) {
+    }
+    else if (freq > 850000000)
+    {
         cal_freq[0] = 0xD7;
         cal_freq[1] = 0xD8;
-    } else if (freq > 770000000) {
+    }
+    else if (freq > 770000000)
+    {
         cal_freq[0] = 0xC1;
         cal_freq[1] = 0xC5;
-    } else if (freq > 460000000) {
+    }
+    else if (freq > 460000000)
+    {
         cal_freq[0] = 0x75;
         cal_freq[1] = 0x81;
-    } else if (freq > 425000000) {
+    }
+    else if (freq > 425000000)
+    {
         cal_freq[0] = 0x6B;
         cal_freq[1] = 0x6F;
     }
@@ -664,7 +685,8 @@ void STM32WL_LoRaRadio::set_channel(uint32_t frequency)
     uint8_t buf[4];
     uint32_t freq = 0;
 
-    if (_force_image_calibration || !_image_calibrated) {
+    if (_force_image_calibration || !_image_calibrated)
+    {
         calibrate_image(frequency);
         _image_calibrated = true;
     }
@@ -679,31 +701,35 @@ void STM32WL_LoRaRadio::set_channel(uint32_t frequency)
 }
 
 /**
- * Put radio in Standby mode
- */
+  * Put radio in Standby mode
+  */
 void STM32WL_LoRaRadio::standby(void)
 {
-    if (_operation_mode == MODE_STDBY_RC) {
+    if (_operation_mode == MODE_STDBY_RC)
+    {
         return;
     }
 
 #if MBED_CONF_STM32WL_LORA_DRIVER_STANDBY_MODE == 1
     uint8_t standby_mode = 1;
 #else
-	uint8_t standby_mode = 0;
+    uint8_t standby_mode = 0;
 #endif
     write_opmode_command((uint8_t) RADIO_SET_STANDBY, &standby_mode, 1);
 
-    if (standby_mode == STDBY_RC) {
+    if (standby_mode == STDBY_RC)
+    {
         _operation_mode = MODE_STDBY_RC;
-    } else {
+    }
+    else
+    {
         _operation_mode = MODE_STDBY_XOSC;
     }
 }
 
 
 void STM32WL_LoRaRadio::SUBGRF_SetTcxoMode(radio_TCXO_ctrl_voltage_t voltage,
-                                             uint32_t timeout)
+                                           uint32_t timeout)
 {
     uint8_t buf[4];
 
@@ -718,66 +744,71 @@ void STM32WL_LoRaRadio::SUBGRF_SetTcxoMode(radio_TCXO_ctrl_voltage_t voltage,
 void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 {
     HAL_StatusTypeDef error_value;
-	uint32_t vector = 0;
-		
-	_radio_events = events;
-  
+    uint32_t vector = 0;
+
+    _radio_events = events;
+
 //    SubgRf.RxContinuous = false;
-   _tx_timeout = 0;
-   _rx_timeout = 0;
-  
-  //call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
-	error_value = HAL_SUBGHZ_Init(&hsubghz);
-    
-	if (error_value!= HAL_OK)
+    _tx_timeout = 0;
+    _rx_timeout = 0;
+
+    //call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
+    error_value = HAL_SUBGHZ_Init(&hsubghz);
+
+    if (error_value != HAL_OK)
     {
-      error_handler(error_value);
+        error_handler(error_value);
     }
-    
-	  // this is a POR sequence
+
+    // this is a POR sequence
     cold_start_wakeup();
-    
+
     SUBGRF_SetTxParams(RFO_LP, 0, RADIO_RAMP_200_US);
-	
+
     /* ST_WORKAROUND_BEGIN: Sleep radio */
     sleep();
-	  /* ST_WORKAROUND_END */
+    /* ST_WORKAROUND_END */
 }
 
 
 void STM32WL_LoRaRadio::cold_start_wakeup()
 {
-	GPIO_InitTypeDef  gpio_init_structure = {0};
-	 
+    GPIO_InitTypeDef  gpio_init_structure = {0};
+
     write_opmode_command(RADIO_SET_REGULATORMODE, &regulator_mode, 1);
     set_buffer_base_addr(0x00, 0x00);
 
-    if (crystal_select == 1) {
+    if (crystal_select == 1)
+    {
         calibration_params_t calib_param;
-      //MBED_CONF_NUCLEO_WL55RC_WAKEUP_TIME <<6 : not defined
+        //MBED_CONF_NUCLEO_WL55RC_WAKEUP_TIME <<6 : not defined
         SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, MBED_CONF_LORA_WAKEUP_TIME << 7); //5 ms
-      
+
         calib_param.value = 0x7F;
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
     }
-    
-    
+
+
     _operation_mode = MODE_STDBY_RC;
 
     set_modem(_active_modem);
 
-    if (_active_modem == MODEM_LORA) {
+    if (_active_modem == MODEM_LORA)
+    {
         set_public_network(_network_mode_public);
     }
 }
 
 void STM32WL_LoRaRadio::set_public_network(bool enable)
 {
-    if (enable) {
+    if (enable)
+    {
         // Change LoRa modem SyncWord
         write_to_register(REG_LR_SYNCWORD, (LORA_MAC_PUBLIC_SYNCWORD >> 8) & 0xFF);
         write_to_register(REG_LR_SYNCWORD + 1, LORA_MAC_PUBLIC_SYNCWORD & 0xFF);
-    } else {
+    }
+    else
+    {
         // Change LoRa modem SyncWord
         write_to_register(REG_LR_SYNCWORD, (LORA_MAC_PRIVATE_SYNCWORD >> 8) & 0xFF);
         write_to_register(REG_LR_SYNCWORD + 1, LORA_MAC_PRIVATE_SYNCWORD & 0xFF);
@@ -788,8 +819,10 @@ uint32_t STM32WL_LoRaRadio::time_on_air(radio_modems_t modem, uint8_t pkt_len)
 {
     uint32_t air_time = 0;
 
-    switch (modem) {
-        case MODEM_FSK: {
+    switch (modem)
+    {
+        case MODEM_FSK:
+        {
             air_time = rint((8 * (_packet_params.params.gfsk.preamble_length
                                   + (_packet_params.params.gfsk.syncword_length >> 3)
                                   + ((_packet_params.params.gfsk.header_type
@@ -798,7 +831,8 @@ uint32_t STM32WL_LoRaRadio::time_on_air(radio_modems_t modem, uint8_t pkt_len)
                              / _mod_params.params.gfsk.bit_rate) * 1000);
         }
         break;
-        case MODEM_LORA: {
+        case MODEM_LORA:
+        {
             float ts = lora_symbol_time[_mod_params.params.lora.bandwidth - 4][12
                                                                                - _mod_params.params.lora.spreading_factor];
             // time of preamble
@@ -838,7 +872,8 @@ void STM32WL_LoRaRadio::wakeup()
 {
     // hold the NSS low, this should wakeup the chip.
     // now we should wait for the _busy line to go low
-    if (_operation_mode == MODE_SLEEP) {
+    if (_operation_mode == MODE_SLEEP)
+    {
 //        _chip_select = 0;
 //        wait_us(100);
 //        _chip_select = 1;
@@ -862,17 +897,17 @@ void STM32WL_LoRaRadio::sleep(void)
     // cold start, power consumption 160 nA
     sleep_state = 0x00;
 #endif
-  
-  /* switch the antenna OFF by SW */
+
+    /* switch the antenna OFF by SW */
     set_antenna_switch(RBI_SWITCH_OFF);
     Radio_SMPS_Set(SMPS_DRIVE_SETTING_DEFAULT);
 
 
-  //DBG LCH:check value  
-  // warm start, power consumption 600 nA
+    //DBG LCH:check value
+    // warm start, power consumption 600 nA
     uint8_t sleep_state = 0x04;
     write_opmode_command(RADIO_SET_SLEEP, &sleep_state, 1);
-  
+
     _operation_mode = MODE_SLEEP;
     ThisThread::sleep_for(2);
 }
@@ -895,99 +930,100 @@ uint32_t STM32WL_LoRaRadio::random(void)
 
 void STM32WL_LoRaRadio::write_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size)
 {
-	HAL_StatusTypeDef error_value;
-	
-	error_value = HAL_SUBGHZ_ExecSetCmd(&hsubghz, (SUBGHZ_RadioSetCmd_t)cmd, buffer, size);
-    if(error_value != HAL_OK)
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_ExecSetCmd(&hsubghz, (SUBGHZ_RadioSetCmd_t)cmd, buffer, size);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 void STM32WL_LoRaRadio::read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size)
 {
-	HAL_StatusTypeDef error_value;
-	
-	error_value = HAL_SUBGHZ_ExecGetCmd(&hsubghz, (SUBGHZ_RadioGetCmd_t)cmd, buffer, size);
-    if(error_value != HAL_OK)
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_ExecGetCmd(&hsubghz, (SUBGHZ_RadioGetCmd_t)cmd, buffer, size);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 void STM32WL_LoRaRadio::write_to_register(uint16_t addr, uint8_t data)
 {
-   HAL_StatusTypeDef error_value;
-	
-	error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, (uint8_t*)&data, 1);
-	if(error_value != HAL_OK)
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, (uint8_t *)&data, 1);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 void STM32WL_LoRaRadio::write_to_register(uint16_t addr, uint8_t *data,
-                                         uint8_t size)
+                                          uint8_t size)
 {
     HAL_StatusTypeDef error_value;
-	
-	error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, data, size );
-	if (error_value != HAL_OK)
-	{
-      error_handler(error_value);
+
+    error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, data, size);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 uint8_t STM32WL_LoRaRadio::read_register(uint16_t addr)
 {
     uint8_t data;
-	HAL_StatusTypeDef error_value;
-		
-    error_value = HAL_SUBGHZ_ReadRegisters( &hsubghz, addr, &data, 1);
-	if(error_value!= HAL_OK)
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_ReadRegisters(&hsubghz, addr, &data, 1);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
     return data;
 
 }
 
 void STM32WL_LoRaRadio::read_register(uint16_t addr, uint8_t *buffer,
-                                     uint8_t size)
+                                      uint8_t size)
 {
-	HAL_StatusTypeDef error_value;
-		
-    error_value = HAL_SUBGHZ_ReadRegisters( &hsubghz, addr, buffer, size );
-    if(error_value!= HAL_OK)
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_ReadRegisters(&hsubghz, addr, buffer, size);
+    if (error_value != HAL_OK)
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 void STM32WL_LoRaRadio::write_fifo(uint8_t *buffer, uint8_t size)
 {
-	HAL_StatusTypeDef error_value;
-		
-    error_value = HAL_SUBGHZ_WriteBuffer( &hsubghz, 0, buffer, size );
-    if (error_value!= HAL_OK)  /* 2nd param is offset */
-	{
-      error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_WriteBuffer(&hsubghz, 0, buffer, size);
+    if (error_value != HAL_OK) /* 2nd param is offset */
+    {
+        error_handler(error_value);
     }
-	
+
 }
 
 void STM32WL_LoRaRadio::set_modem(uint8_t modem)
 {
     _active_modem = modem;
 
-    // setting modem type must happen in stnadby mode
-    if (_operation_mode != MODE_STDBY_RC) {
+    // setting modem type must happen in standby mode
+    if (_operation_mode != MODE_STDBY_RC)
+    {
         standby();
     }
 
@@ -1001,12 +1037,12 @@ uint8_t STM32WL_LoRaRadio::get_modem()
 
 void STM32WL_LoRaRadio::read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset)
 {
-	HAL_StatusTypeDef error_value;
-		
-    error_value = HAL_SUBGHZ_ReadBuffer( &hsubghz, offset, buffer, size );
-   if(error_value != HAL_OK)  /* 2nd param is offset */
-	{
-    error_handler(error_value);
+    HAL_StatusTypeDef error_value;
+
+    error_value = HAL_SUBGHZ_ReadBuffer(&hsubghz, offset, buffer, size);
+    if (error_value != HAL_OK) /* 2nd param is offset */
+    {
+        error_handler(error_value);
     }
 }
 
@@ -1015,9 +1051,11 @@ uint8_t STM32WL_LoRaRadio::get_fsk_bw_reg_val(uint32_t bandwidth)
 {
     uint8_t i;
 
-    for (i = 0; i < (sizeof(fsk_bandwidths) / sizeof(fsk_bw_t)) - 1; i++) {
+    for (i = 0; i < (sizeof(fsk_bandwidths) / sizeof(fsk_bw_t)) - 1; i++)
+    {
         if ((bandwidth >= fsk_bandwidths[i].bandwidth)
-                && (bandwidth < fsk_bandwidths[i + 1].bandwidth)) {
+            && (bandwidth < fsk_bandwidths[i + 1].bandwidth))
+        {
             return fsk_bandwidths[i].register_value;
         }
     }
@@ -1028,30 +1066,34 @@ uint8_t STM32WL_LoRaRadio::get_fsk_bw_reg_val(uint32_t bandwidth)
 
 void STM32WL_LoRaRadio::set_max_payload_length(radio_modems_t modem, uint8_t max)
 {
-    if (modem == MODEM_LORA) {
+    if (modem == MODEM_LORA)
+    {
         _packet_params.params.lora.payload_length = max;
-    } else {
+    }
+    else
+    {
         _packet_params.params.gfsk.payload_length = max;
     }
 }
 
 void STM32WL_LoRaRadio::set_tx_config(radio_modems_t modem,
-                                     int8_t power,
-                                     uint32_t fdev,
-                                     uint32_t bandwidth,
-                                     uint32_t datarate,
-                                     uint8_t coderate,
-                                     uint16_t preamble_len,
-                                     bool fix_len,
-                                     bool crc_on,
-                                     bool freq_hop_on,
-                                     uint8_t hop_period,
-                                     bool iq_inverted,
-                                     uint32_t timeout)
+                                      int8_t power,
+                                      uint32_t fdev,
+                                      uint32_t bandwidth,
+                                      uint32_t datarate,
+                                      uint8_t coderate,
+                                      uint16_t preamble_len,
+                                      bool fix_len,
+                                      bool crc_on,
+                                      bool freq_hop_on,
+                                      uint8_t hop_period,
+                                      bool iq_inverted,
+                                      uint32_t timeout)
 {
 
     uint8_t modem_type = (uint8_t) modem;
-    switch (modem_type) {
+    switch (modem_type)
+    {
         case MODEM_FSK:
             _mod_params.modem_type = MODEM_FSK;
             _mod_params.params.gfsk.bit_rate = datarate;
@@ -1069,9 +1111,12 @@ void STM32WL_LoRaRadio::set_tx_config(radio_modems_t modem,
                                                      RADIO_PACKET_FIXED_LENGTH :
                                                      RADIO_PACKET_VARIABLE_LENGTH;
 
-            if (crc_on) {
+            if (crc_on)
+            {
                 _packet_params.params.gfsk.crc_length = RADIO_CRC_2_BYTES_CCIT;
-            } else {
+            }
+            else
+            {
                 _packet_params.params.gfsk.crc_length = RADIO_CRC_OFF;
             }
             _packet_params.params.gfsk.whitening_mode = RADIO_DC_FREEWHITENING;
@@ -1085,26 +1130,35 @@ void STM32WL_LoRaRadio::set_tx_config(radio_modems_t modem,
         case MODEM_LORA:
             _mod_params.modem_type = MODEM_LORA;
             _mod_params.params.lora.spreading_factor = (lora_spread_factors_t) datarate;
-            _mod_params.params.lora.bandwidth = (lora_bandwidths_t) lora_bandwidhts[bandwidth];
-            _mod_params.params.lora.coding_rate = (lora_coding_tates_t) coderate;
+            _mod_params.params.lora.bandwidth = (lora_bandwidths_t) lora_bandwidths[bandwidth];
+            _mod_params.params.lora.coding_rate = (lora_coding_states_t) coderate;
 
             if (((bandwidth == 0) && ((datarate == 11) || (datarate == 12)))
-                    || ((bandwidth == 1) && (datarate == 12))) {
+                || ((bandwidth == 1) && (datarate == 12)))
+            {
                 _mod_params.params.lora.low_datarate_optimization = 0x01;
-            } else {
+            }
+            else
+            {
                 _mod_params.params.lora.low_datarate_optimization = 0x00;
             }
 
             _packet_params.modem_type = MODEM_LORA;
 
             if ((_mod_params.params.lora.spreading_factor == LORA_SF5)
-                    || (_mod_params.params.lora.spreading_factor == LORA_SF6)) {
-                if (preamble_len < 12) {
+                || (_mod_params.params.lora.spreading_factor == LORA_SF6))
+            {
+                if (preamble_len < 12)
+                {
                     _packet_params.params.lora.preamble_length = 12;
-                } else {
+                }
+                else
+                {
                     _packet_params.params.lora.preamble_length = preamble_len;
                 }
-            } else {
+            }
+            else
+            {
                 _packet_params.params.lora.preamble_length = preamble_len;
             }
 
@@ -1116,48 +1170,56 @@ void STM32WL_LoRaRadio::set_tx_config(radio_modems_t modem,
 
             break;
     }
-    _antSwitchPaSelect = SUBGRF_SetRfTxPower( power );
+    _antSwitchPaSelect = SUBGRF_SetRfTxPower(power);
     _tx_power = power;
-    
+
     _tx_timeout = timeout;
 }
 
 void STM32WL_LoRaRadio::set_rx_config(radio_modems_t modem,
-                                     uint32_t bandwidth,
-                                     uint32_t datarate,
-                                     uint8_t coderate,
-                                     uint32_t bandwidthAfc,
-                                     uint16_t preamble_len,
-                                     uint16_t symb_timeout,
-                                     bool fix_len,
-                                     uint8_t payload_len,
-                                     bool crc_on,
-                                     bool freq_hop_on,
-                                     uint8_t hop_period,
-                                     bool iq_inverted,
-                                     bool rx_continuous)
+                                      uint32_t bandwidth,
+                                      uint32_t datarate,
+                                      uint8_t coderate,
+                                      uint32_t bandwidthAfc,
+                                      uint16_t preamble_len,
+                                      uint16_t symb_timeout,
+                                      bool fix_len,
+                                      uint8_t payload_len,
+                                      bool crc_on,
+                                      bool freq_hop_on,
+                                      uint8_t hop_period,
+                                      bool iq_inverted,
+                                      bool rx_continuous)
 {
     uint8_t max_payload_len;
     (void) freq_hop_on;
     (void) hop_period;
 
-    if (rx_continuous) {
+    if (rx_continuous)
+    {
         _reception_mode = RECEPTION_MODE_CONTINUOUS;
         symb_timeout = 0;
-    }  else {
+    }
+    else
+    {
         _reception_mode = RECEPTION_MODE_SINGLE;
     }
 
-    if (fix_len == true) {
+    if (fix_len == true)
+    {
         max_payload_len = payload_len;
-    } else {
+    }
+    else
+    {
         max_payload_len = 0xFF;
     }
 
     uint8_t modem_type = (uint8_t) modem;
 
-    switch (modem_type) {
-        case MODEM_FSK: {
+    switch (modem_type)
+    {
+        case MODEM_FSK:
+        {
             _mod_params.modem_type = MODEM_FSK;
             _mod_params.params.gfsk.bit_rate = datarate;
             _mod_params.params.gfsk.modulation_shaping = MOD_SHAPING_G_BT_1;
@@ -1175,9 +1237,12 @@ void STM32WL_LoRaRadio::set_rx_config(radio_modems_t modem,
                 RADIO_PACKET_VARIABLE_LENGTH;
             _packet_params.params.gfsk.payload_length = max_payload_len;
 
-            if (crc_on) {
+            if (crc_on)
+            {
                 _packet_params.params.gfsk.crc_length = RADIO_CRC_2_BYTES_CCIT;
-            } else {
+            }
+            else
+            {
                 _packet_params.params.gfsk.crc_length = RADIO_CRC_OFF;
             }
 
@@ -1194,32 +1259,42 @@ void STM32WL_LoRaRadio::set_rx_config(radio_modems_t modem,
             break;
         }
 
-        case MODEM_LORA: {
+        case MODEM_LORA:
+        {
             _rx_timeout_in_symbols = symb_timeout;
             _mod_params.modem_type = MODEM_LORA;
             _mod_params.params.lora.spreading_factor =
                 (lora_spread_factors_t) datarate;
-            _mod_params.params.lora.bandwidth = (lora_bandwidths_t) lora_bandwidhts[bandwidth];
+            _mod_params.params.lora.bandwidth = (lora_bandwidths_t) lora_bandwidths[bandwidth];
             _mod_params.params.lora.coding_rate =
-                (lora_coding_tates_t) coderate;
+                (lora_coding_states_t) coderate;
 
             if (((bandwidth == 0) && ((datarate == 11) || (datarate == 12)))
-                    || ((bandwidth == 1) && (datarate == 12))) {
+                || ((bandwidth == 1) && (datarate == 12)))
+            {
                 _mod_params.params.lora.low_datarate_optimization = 0x01;
-            } else {
+            }
+            else
+            {
                 _mod_params.params.lora.low_datarate_optimization = 0x00;
             }
 
             _packet_params.modem_type = MODEM_LORA;
 
             if ((_mod_params.params.lora.spreading_factor == LORA_SF5)
-                    || (_mod_params.params.lora.spreading_factor == LORA_SF6)) {
-                if (preamble_len < 12) {
+                || (_mod_params.params.lora.spreading_factor == LORA_SF6))
+            {
+                if (preamble_len < 12)
+                {
                     _packet_params.params.lora.preamble_length = 12;
-                } else {
+                }
+                else
+                {
                     _packet_params.params.lora.preamble_length = preamble_len;
                 }
-            } else {
+            }
+            else
+            {
                 _packet_params.params.lora.preamble_length = preamble_len;
             }
 
@@ -1230,9 +1305,12 @@ void STM32WL_LoRaRadio::set_rx_config(radio_modems_t modem,
 
             set_modem(MODEM_LORA);
 
-            if (_reception_mode == RECEPTION_MODE_CONTINUOUS) {
+            if (_reception_mode == RECEPTION_MODE_CONTINUOUS)
+            {
                 _rx_timeout = 0xFFFFFFFF;
-            } else {
+            }
+            else
+            {
                 _rx_timeout = 0x00000000;
             }
 
@@ -1245,7 +1323,7 @@ void STM32WL_LoRaRadio::set_rx_config(radio_modems_t modem,
 }
 
 void STM32WL_LoRaRadio::configure_dio_irq(uint16_t irq_mask, uint16_t dio1_mask,
-                                         uint16_t dio2_mask, uint16_t dio3_mask)
+                                          uint16_t dio2_mask, uint16_t dio3_mask)
 {
     uint8_t buf[8];
 
@@ -1269,18 +1347,17 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
                       IRQ_RADIO_NONE,
                       IRQ_RADIO_NONE);
 
-     /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
+    /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
 //    DBG_GPIO_RADIO_TX(SET);
-//    if (rf_dbg_tx != NC) {
-//        _rf_dbg_tx = 1;
-//    }
-    
+//  STM32WL_LoRaRadio::setTXPin(1);
+
+
     /* Set RF switch */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_TX);
     /* ST_WORKAROUND_END */
 
-  
+
     set_modulation_params(&_mod_params);
     set_packet_params(&_packet_params);
 
@@ -1303,8 +1380,10 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
 
 void STM32WL_LoRaRadio::receive(void)
 {
-    if (get_modem() == MODEM_LORA) {
-        if (_reception_mode != RECEPTION_MODE_CONTINUOUS) {
+    if (get_modem() == MODEM_LORA)
+    {
+        if (_reception_mode != RECEPTION_MODE_CONTINUOUS)
+        {
             // Data-sheet Table 13-11: StopOnPreambParam
             // We will use radio's internal timer to mark no reception. This behaviour
             // is different from SX1272/SX1276 where we are relying on radio to stop
@@ -1319,7 +1398,8 @@ void STM32WL_LoRaRadio::receive(void)
         write_opmode_command(RADIO_SET_LORASYMBTIMEOUT, &_rx_timeout_in_symbols, 1);
     }
 
-    if (_reception_mode != RECEPTION_MODE_OTHER) {
+    if (_reception_mode != RECEPTION_MODE_OTHER)
+    {
         configure_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR,
                           IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR,
                           IRQ_RADIO_NONE,
@@ -1332,17 +1412,16 @@ void STM32WL_LoRaRadio::receive(void)
     /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
     /* Set DBG pin */
 //    DBG_GPIO_RADIO_RX(SET);
-//    if (rf_dbg_rx != NC) {
-//        _rf_dbg_rx = 1;
-//    }
+//    STM32WL_LoRaRadio::setRXPin(1);
+
     /* RF switch configuration */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
     /* ST_WORKAROUND_END */
-    
+
 #if MBED_CONF_STM32WL_LORA_DRIVER_BOOST_RX
     write_to_register(REG_RX_GAIN, 0x96);
 #endif
-    
+
     uint8_t buf[3];
     buf[0] = (uint8_t)((_rx_timeout >> 16) & 0xFF);
     buf[1] = (uint8_t)((_rx_timeout >> 8) & 0xFF);
@@ -1362,10 +1441,13 @@ void STM32WL_LoRaRadio::set_tx_power(int8_t power)
 
     buf[0] = power;
 
-    if (crystal_select == 0) {
+    if (crystal_select == 0)
+    {
         // TCXO
         buf[1] = RADIO_RAMP_200_US;
-    } else {
+    }
+    else
+    {
         // XTAL
         buf[1] = RADIO_RAMP_20_US;
     }
@@ -1381,11 +1463,13 @@ void STM32WL_LoRaRadio::set_modulation_params(modulation_params_t *params)
 
     // Check if required configuration corresponds to the stored packet type
     // If not, silently update radio packet type
-    if (_active_modem != params->modem_type) {
+    if (_active_modem != params->modem_type)
+    {
         set_modem(params->modem_type);
     }
 
-    switch (params->modem_type) {
+    switch (params->modem_type)
+    {
         case MODEM_FSK:
             n = 8;
             temp = (uint32_t)(32 * ((float) XTAL_FREQ / (float) params->params.gfsk.bit_rate));
@@ -1417,7 +1501,7 @@ void STM32WL_LoRaRadio::set_modulation_params(modulation_params_t *params)
 }
 
 void STM32WL_LoRaRadio::set_pa_config(uint8_t pa_DC, uint8_t hp_max,
-                                     uint8_t device_type, uint8_t pa_LUT)
+                                      uint8_t device_type, uint8_t pa_LUT)
 {
     uint8_t buf[4];
 
@@ -1430,7 +1514,8 @@ void STM32WL_LoRaRadio::set_pa_config(uint8_t pa_DC, uint8_t hp_max,
 
 void STM32WL_LoRaRadio::set_crc_seed(uint16_t seed)
 {
-    if (_active_modem == MODEM_FSK) {
+    if (_active_modem == MODEM_FSK)
+    {
         uint8_t buf[2];
         buf[0] = (uint8_t)((seed >> 8) & 0xFF);
         buf[1] = (uint8_t)(seed & 0xFF);
@@ -1440,7 +1525,8 @@ void STM32WL_LoRaRadio::set_crc_seed(uint16_t seed)
 
 void STM32WL_LoRaRadio::set_crc_polynomial(uint16_t polynomial)
 {
-    if (_active_modem == MODEM_FSK) {
+    if (_active_modem == MODEM_FSK)
+    {
         uint8_t buf[2];
         buf[0] = (uint8_t)((polynomial >> 8) & 0xFF);
         buf[1] = (uint8_t)(polynomial & 0xFF);
@@ -1450,7 +1536,8 @@ void STM32WL_LoRaRadio::set_crc_polynomial(uint16_t polynomial)
 
 void STM32WL_LoRaRadio::set_whitening_seed(uint16_t seed)
 {
-    if (_active_modem == MODEM_FSK) {
+    if (_active_modem == MODEM_FSK)
+    {
         uint8_t reg_value = read_register(REG_LR_WHITSEEDBASEADDR_MSB) & 0xFE;
         reg_value = ((seed >> 8) & 0x01) | reg_value;
         write_to_register(REG_LR_WHITSEEDBASEADDR_MSB, reg_value); // only 1 bit.
@@ -1466,21 +1553,28 @@ void STM32WL_LoRaRadio::set_packet_params(packet_params_t *packet_params)
 
     // Check if required configuration corresponds to the stored packet type
     // If not, silently update radio packet type
-    if (_active_modem != packet_params->modem_type) {
+    if (_active_modem != packet_params->modem_type)
+    {
         set_modem(packet_params->modem_type);
     }
 
-    switch (packet_params->modem_type) {
+    switch (packet_params->modem_type)
+    {
         case MODEM_FSK:
-            if (packet_params->params.gfsk.crc_length == RADIO_CRC_2_BYTES_IBM) {
+            if (packet_params->params.gfsk.crc_length == RADIO_CRC_2_BYTES_IBM)
+            {
                 set_crc_seed(CRC_IBM_SEED);
                 set_crc_polynomial(CRC_POLYNOMIAL_IBM);
                 crc_val = RADIO_CRC_2_BYTES;
-            } else if (packet_params->params.gfsk.crc_length == RADIO_CRC_2_BYTES_CCIT) {
+            }
+            else if (packet_params->params.gfsk.crc_length == RADIO_CRC_2_BYTES_CCIT)
+            {
                 set_crc_seed(CRC_CCITT_SEED);
                 set_crc_polynomial(CRC_POLYNOMIAL_CCITT);
                 crc_val = RADIO_CRC_2_BYTES_INV;
-            } else {
+            }
+            else
+            {
                 crc_val = packet_params->params.gfsk.crc_length;
             }
             n = 9;
@@ -1511,9 +1605,9 @@ void STM32WL_LoRaRadio::set_packet_params(packet_params_t *packet_params)
 }
 
 void STM32WL_LoRaRadio::set_cad_params(lora_cad_symbols_t nb_symbols,
-                                      uint8_t det_peak, uint8_t det_min,
-                                      cad_exit_modes_t exit_mode,
-                                      uint32_t timeout)
+                                       uint8_t det_peak, uint8_t det_min,
+                                       cad_exit_modes_t exit_mode,
+                                       uint32_t timeout)
 {
     uint8_t buf[7];
 
@@ -1540,7 +1634,8 @@ void STM32WL_LoRaRadio::set_buffer_base_addr(uint8_t tx_base_addr, uint8_t rx_ba
 
 uint8_t STM32WL_LoRaRadio::get_status(void)
 {
-    if (_operation_mode != MODE_STDBY_RC || _operation_mode != MODE_SLEEP) {
+    if (_operation_mode != MODE_STDBY_RC || _operation_mode != MODE_SLEEP)
+    {
         return 0;
     }
 
@@ -1558,7 +1653,7 @@ int8_t STM32WL_LoRaRadio::get_rssi()
 }
 
 void STM32WL_LoRaRadio::get_rx_buffer_status(uint8_t *payload_len,
-                                            uint8_t *start_ptr)
+                                             uint8_t *start_ptr)
 {
     uint8_t status[2];
 
@@ -1567,9 +1662,12 @@ void STM32WL_LoRaRadio::get_rx_buffer_status(uint8_t *payload_len,
     // In case of LORA fixed header, the payloadLength is obtained by reading
     // the register REG_LR_PAYLOADLENGTH
     if ((get_modem() == MODEM_LORA) &&
-            (read_register(REG_LR_PACKETPARAMS) >> 7 == 1)) {
+        (read_register(REG_LR_PACKETPARAMS) >> 7 == 1))
+    {
         *payload_len = read_register(REG_LR_PAYLOADLENGTH);
-    } else {
+    }
+    else
+    {
         *payload_len = status[0];
     }
 
@@ -1583,7 +1681,8 @@ void STM32WL_LoRaRadio::get_packet_status(packet_status_t *pkt_status)
     read_opmode_command((uint8_t) RADIO_GET_PACKETSTATUS, status, 3);
 
     pkt_status->modem_type = (radio_modems_t) get_modem();
-    switch (pkt_status->modem_type) {
+    switch (pkt_status->modem_type)
+    {
         case MODEM_FSK:
             pkt_status->params.gfsk.rx_status = status[0];
             pkt_status->params.gfsk.rssi_sync = -status[1] >> 1;
