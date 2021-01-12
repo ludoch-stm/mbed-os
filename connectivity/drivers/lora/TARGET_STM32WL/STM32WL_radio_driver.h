@@ -13,6 +13,19 @@
 #define RFO_LP                                      1
 #define RFO_HP                                      2
 
+/* STM32WL Nucleo antenna switch defines */
+#define RBI_CONF_RFO_LP_HP  0
+#define RBI_CONF_RFO_LP     1
+#define RBI_CONF_RFO_HP     2
+
+typedef enum
+{
+  RBI_SWITCH_OFF    = 0,
+  RBI_SWITCH_RX     = 1,
+  RBI_SWITCH_RFO_LP = 2,
+  RBI_SWITCH_RFO_HP = 3,
+} RBI_Switch_TypeDef;
+
 /**
   * @brief drive value used anytime radio is NOT in TX low power mode
   */
@@ -127,7 +140,7 @@
 
 
 /*!
- * \brief List of matching supported by the sx126x
+ * \brief List of matching supported by the STM32WL SubGHz
  */
 #define MATCHING_FREQ_915                           0
 #define MATCHING_FREQ_780                           1

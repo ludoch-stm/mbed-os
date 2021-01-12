@@ -57,18 +57,7 @@ SPDX-License-Identifier: BSD-3-Clause
 #define MAX_DATA_BUFFER_SIZE_STM32WL                        255
 #endif
 
-/* STM32WL Nucleo antenna switch defines */
-#define RBI_CONF_RFO_LP_HP  0
-#define RBI_CONF_RFO_LP     1
-#define RBI_CONF_RFO_HP     2
 
-typedef enum
-{
-  RBI_SWITCH_OFF    = 0,
-  RBI_SWITCH_RX     = 1,
-  RBI_SWITCH_RFO_LP = 2,
-  RBI_SWITCH_RFO_HP = 3,
-} RBI_Switch_TypeDef;
 
 class STM32WL_LoRaRadio : public LoRaRadio {
 
@@ -372,8 +361,6 @@ private:
     uint8_t get_frequency_support(void);
 
 
-    // ISR
-    void irq_process_isr();
 
     void set_modulation_params(modulation_params_t *modulationParams);
     void set_packet_params(packet_params_t *packet_params);
@@ -401,8 +388,8 @@ private:
     void SUBGRF_SetTxParams( uint8_t paSelect, int8_t power, radio_ramp_time_t rampTime );
     void Radio_SMPS_Set(uint8_t level);
     void set_antenna_switch(RBI_Switch_TypeDef state);
+    uint32_t RadioGetWakeupTime(void);
     
-private:
 
     uint8_t _standby_mode;
 

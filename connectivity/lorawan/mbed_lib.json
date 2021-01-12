@@ -95,8 +95,8 @@
         }
     },
 	"target_overrides": {
-          "NUCLEO_WL55RC": {
-            "wakeup-time": 10
+          "STM32WL": {
+            "wakeup-time": 3
             }
           }
 }

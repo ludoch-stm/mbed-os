@@ -42,11 +42,7 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "stm32wlxx_hal_subghz.h"
 
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE == 1
-uint8_t regulator_mode = USE_DCDC;
-#else
-uint8_t regulator_mode = USE_LDO;
-#endif
+uint8_t regulator_mode = MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE;
 
 uint8_t crystal_select  = MBED_CONF_STM32WL_LORA_DRIVER_CRYSTAL_SELECT;
 
@@ -71,10 +67,12 @@ static uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];
 static uint8_t _operation_mode;
 static uint8_t _active_modem;
 
+using namespace std::chrono;
 using namespace mbed;
-using namespace rtos;
 
 #ifdef MBED_CONF_RTOS_PRESENT
+using namespace rtos;
+
 /**
   * Signals
   */
@@ -190,7 +188,7 @@ void STM32WL_LoRaRadio::rf_irq_task(void)
         lock();
         if (flags & SIG_INTERRUPT)
         {
-            irq_process_isr();
+            RadioIrqProcess();
         }
         unlock();
     }
@@ -199,22 +197,18 @@ void STM32WL_LoRaRadio::rf_irq_task(void)
 
 void STM32WL_LoRaRadio::error_handler(HAL_StatusTypeDef error)
 {
-    printf("ERROR in STM32WL_loRaRadio.c : %d", error);
-    /* USER CODE BEGIN error_handler_Debug */
+    printf("ERROR in STM32WL_LoRaRadio.c : %d", error);
+
     /* User can add his own implementation to report the HAL error return state */
     while (1)
     {
     }
-    /* USER CODE END error_handler_Debug */
+
 }
 
-void STM32WL_LoRaRadio::irq_process_isr()
+uint32_t STM32WL_LoRaRadio::RadioGetWakeupTime(void)
 {
-#ifdef MBED_CONF_RTOS_PRESENT
-    irq_thread.flags_set(SIG_INTERRUPT);
-#else
-    RadioIrqProcess();
-#endif
+    return (MBED_CONF_STM32WL_LORA_DRIVER_RF_WAKEUP_TIME   + MBED_CONF_LORA_WAKEUP_TIME);
 }
 
 uint16_t STM32WL_LoRaRadio::get_irq_status(void)
@@ -234,7 +228,7 @@ void STM32WL_LoRaRadio::clear_irq_status(uint16_t irq)
     write_opmode_command((uint8_t) RADIO_CLR_IRQSTATUS, buf, 2);
 }
 
-//TODO - Better do CAD here. CAD code is already part of the driver
+//       Better do CAD here. CAD code is already part of the driver
 //       It needs to be hooked up to the stack (this API will need change
 //       and the stack will need changes too)
 bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
@@ -244,15 +238,17 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
 {
     bool status = true;
     int16_t rssi = 0;
-
+    uint32_t sleep_duration;
+  
     set_modem(modem);
     set_channel(freq);
     _reception_mode = RECEPTION_MODE_OTHER;
     _rx_timeout = 0x00000000;
     receive();
-
+  
+    sleep_duration = RadioGetWakeupTime();
     // hold on a bit, radio turn-around time
-    ThisThread::sleep_for(1);
+    ThisThread::sleep_for(sleep_duration);
 
     Timer elapsed_time;
     elapsed_time.start();
@@ -275,19 +271,15 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
 
 void STM32WL_LoRaRadio::start_cad(void)
 {
-    // TODO: CAD is more advanced in SX126X. We will need API change in LoRaRadio
+    //       CAD is more advanced in SX126X. We will need API change in LoRaRadio
     //       for this to act properly
 }
 
 
 
-/**
-  * TODO: The purpose of this API is unclear.
-  *       Need to start an internal discussion.
-  */
+
 bool STM32WL_LoRaRadio::check_rf_frequency(uint32_t frequency)
 {
-    // Implement check. Currently all frequencies are supported ? What band ?
     return true;
 }
 
@@ -319,22 +311,16 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
   */
 static void SUBGHZ_Radio_IRQHandler(void)
 {
-    /* USER CODE BEGIN SUBGHZ_Radio_IRQn 0 */
-
-    /* USER CODE END SUBGHZ_Radio_IRQn 0 */
     RadioIrqProcess();
-    /* USER CODE BEGIN SUBGHZ_Radio_IRQn 1 */
-
-    /* USER CODE END SUBGHZ_Radio_IRQn 1 */
 }
 
 
 /* STM32WL driver specific functions */
 void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef *subghzHandle)
 {
-    /* USER CODE BEGIN SUBGHZ_MspInit 0 */
+
     core_util_critical_section_enter();
-    /* USER CODE END SUBGHZ_MspInit 0 */
+
     /* SUBGHZ clock enable */
     __HAL_RCC_SUBGHZSPI_CLK_ENABLE();
 
@@ -342,9 +328,9 @@ void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef *subghzHandle)
     NVIC_SetVector(SUBGHZ_Radio_IRQn, (uint32_t)SUBGHZ_Radio_IRQHandler);
     NVIC_EnableIRQ(SUBGHZ_Radio_IRQn);
 
-    /* USER CODE BEGIN SUBGHZ_MspInit 1 */
+
     core_util_critical_section_exit();
-    /* USER CODE END SUBGHZ_MspInit 1 */
+
 }
 
 static void RadioIrqProcess()
@@ -781,8 +767,8 @@ void STM32WL_LoRaRadio::cold_start_wakeup()
     if (crystal_select == 1)
     {
         calibration_params_t calib_param;
-        //MBED_CONF_NUCLEO_WL55RC_WAKEUP_TIME <<6 : not defined
-        SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, MBED_CONF_LORA_WAKEUP_TIME << 7); //5 ms
+
+        SUBGRF_SetTcxoMode(TCXO_CTRL_VOLTAGE, MBED_CONF_STM32WL_LORA_DRIVER_RF_WAKEUP_TIME << 6); //100 ms
 
         calib_param.value = 0x7F;
         write_opmode_command(RADIO_CALIBRATE, &calib_param.value, 1);
@@ -859,13 +845,9 @@ uint32_t STM32WL_LoRaRadio::time_on_air(radio_modems_t modem, uint8_t pkt_len)
 
 void STM32WL_LoRaRadio::radio_reset()
 {
-//    _reset_ctl.output();
-//    _reset_ctl = 0;
-//    // should be enough, required is 50-100 us
-//    ThisThread::sleep_for(2);
-//    _reset_ctl.input();
+
     // give some time for automatic image calibration
-    ThisThread::sleep_for(6);
+    ThisThread::sleep_for(6ms);
 }
 
 void STM32WL_LoRaRadio::wakeup()
@@ -874,10 +856,6 @@ void STM32WL_LoRaRadio::wakeup()
     // now we should wait for the _busy line to go low
     if (_operation_mode == MODE_SLEEP)
     {
-//        _chip_select = 0;
-//        wait_us(100);
-//        _chip_select = 1;
-//        //wait_us(100);
 #if MBED_CONF_STM32WL_LORA_DRIVER_SLEEP_MODE == 1
         wait_us(3500);
         // whenever we wakeup from Cold sleep state, we need to perform
@@ -890,9 +868,6 @@ void STM32WL_LoRaRadio::wakeup()
 
 void STM32WL_LoRaRadio::sleep(void)
 {
-
-
-
 #if MBED_CONF_STM32WL_LORA_DRIVER_SLEEP_MODE == 1
     // cold start, power consumption 160 nA
     sleep_state = 0x00;
@@ -903,13 +878,12 @@ void STM32WL_LoRaRadio::sleep(void)
     Radio_SMPS_Set(SMPS_DRIVE_SETTING_DEFAULT);
 
 
-    //DBG LCH:check value
-    // warm start, power consumption 600 nA
+    // warm start set , power consumption 600 nA
     uint8_t sleep_state = 0x04;
     write_opmode_command(RADIO_SET_SLEEP, &sleep_state, 1);
 
     _operation_mode = MODE_SLEEP;
-    ThisThread::sleep_for(2);
+    ThisThread::sleep_for(2ms);
 }
 
 uint32_t STM32WL_LoRaRadio::random(void)
@@ -921,7 +895,7 @@ uint32_t STM32WL_LoRaRadio::random(void)
     _reception_mode = RECEPTION_MODE_OTHER;
     _rx_timeout = 0xFFFFFFFF;
     receive();
-    ThisThread::sleep_for(1);
+
     read_register(RANDOM_NUMBER_GENERATORBASEADDR, buf, 4);
     standby();
 
