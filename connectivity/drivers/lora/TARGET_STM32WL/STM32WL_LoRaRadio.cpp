@@ -25,7 +25,7 @@ SPDX-License-Identifier: BSD-3-Clause
 /**
   ******************************************************************************
   *
-  *          Portions COPYRIGHT 2020 STMicroelectronics
+  *          Portions COPYRIGHT 2021 STMicroelectronics
   *
   * @file    STM32WL_LoRaRadio.c
   * @author  MCD Application Team
@@ -70,13 +70,14 @@ static uint8_t _active_modem;
 using namespace std::chrono;
 using namespace mbed;
 
+
 #ifdef MBED_CONF_RTOS_PRESENT
 using namespace rtos;
-
 /**
   * Signals
   */
 #define SIG_INTERRUPT        0x02
+
 #endif
 
 
@@ -128,18 +129,24 @@ const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.0
     { 8.192,  4.096,  2.048, 1.024, 0.512, 0.256 }
 }; // 500 KHz
 
+
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+static DigitalInOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, PIN_OUTPUT, PullNone, 0);
+#endif
+
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+static DigitalInOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, PIN_OUTPUT, PullNone, 0);
+#endif
+
+
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
                                      PinName rf_switch_ctrl2,
-                                     PinName rf_switch_ctrl3,
-                                     PinName rf_dbg_rx,
-                                     PinName rf_dbg_tx
+                                     PinName rf_switch_ctrl3
                                     )
     :
     _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
     _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
-    _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0),
-    _rf_dbg_rx(rf_dbg_rx, PIN_OUTPUT, PullNone, 0),
-    _rf_dbg_tx(rf_dbg_tx, PIN_OUTPUT, PullNone, 0)
+    _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0)
 #ifdef MBED_CONF_RTOS_PRESENT
     , irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL")
 #endif
@@ -160,7 +167,7 @@ STM32WL_LoRaRadio::~STM32WL_LoRaRadio()
 }
 
 /**
-  * Acquire lock
+  * Acquire radio lock
   */
 void STM32WL_LoRaRadio::lock(void)
 {
@@ -168,7 +175,7 @@ void STM32WL_LoRaRadio::lock(void)
 }
 
 /**
-  * Release lock
+  * Release radio lock
   */
 void STM32WL_LoRaRadio::unlock(void)
 {
@@ -194,17 +201,6 @@ void STM32WL_LoRaRadio::rf_irq_task(void)
     }
 }
 #endif
-
-void STM32WL_LoRaRadio::error_handler(HAL_StatusTypeDef error)
-{
-    printf("ERROR in STM32WL_LoRaRadio.c : %d", error);
-
-    /* User can add his own implementation to report the HAL error return state */
-    while (1)
-    {
-    }
-
-}
 
 uint32_t STM32WL_LoRaRadio::RadioGetWakeupTime(void)
 {
@@ -264,8 +260,9 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
             break;
         }
     }
-
-    sleep();
+	
+    /* radio sleep */
+    sleep(); 
     return status;
 }
 
@@ -289,22 +286,6 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
     // This is useless. We even removed the support from our MAC layer.
 }
 
-
-///* Set Debug Line TX */
-//void STM32WL_LoRaRadio::setTXPin(int32_t value)
-//{
-//    if (rf_dbg_tx != NC) {
-//        _rf_dbg_tx = value;
-//    }
-//}
-
-///* Set Debug Line RX */
-//void STM32WL_LoRaRadio::setRXPin(int32_t value)
-//{
-//  if (rf_dbg_rx != NC) {
-//        _rf_dbg_rx = value;
-//    }
-//}
 
 /**
   * @brief This function handles SUBGHZ Radio Interrupt.
@@ -368,10 +349,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
     {
         _radio_events->tx_done();
 
-        /* Reset DBG pin */
-        //DBG_GPIO_RADIO_TX(RST);
-      //STM32WL_LoRaRadio::setTXPin(0);
-
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+        /* Reset TX DBG pin */
+   _rf_dbg_tx = 0;
+#endif
     }
 }
 
@@ -400,9 +381,10 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
 
         _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
 
-        /* Reset DBG pin */
-//     DBG_GPIO_RADIO_RX(RST);
-//   STM32WL_LoRaRadio::setRXPin(0);
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+        /* Reset RX DBG pin */
+   _rf_dbg_rx = 0;
+#endif
     }
 }
 
@@ -432,19 +414,20 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
     {
         _radio_events->tx_timeout();
 
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
         /* Reset TX DBG pin */
-//    DBG_GPIO_RADIO_TX(RST);
-//    STM32WL_LoRaRadio::setTXPin(0);
-
+   _rf_dbg_tx = 0;
+#endif
 
     }
     else if ((_radio_events && _radio_events->rx_timeout) && (_operation_mode == MODE_RX))
     {
         _radio_events->rx_timeout();
 
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
         /* Reset RX DBG pin */
-//   DBG_GPIO_RADIO_RX(RST);
-//   STM32WL_LoRaRadio::setRXPin(0);
+   _rf_dbg_rx = 0;
+#endif
     }
 }
 
@@ -545,10 +528,9 @@ void STM32WL_LoRaRadio::SUBGRF_SetTxParams(uint8_t paSelect, int8_t power, radio
     }
     else // rfo_hp
     {
-        // WORKAROUND - Better Resistance of the SX1262 Tx to Antenna Mismatch, see DS_SX1261-2_V1.2 datasheet chapter 15.2
+        // Better Resistance of the radio Tx to Antenna Mismatch
         // RegTxClampConfig = @address 0x08D8
         write_to_register(REG_TX_CLAMP, read_register(REG_TX_CLAMP) | (0x0F << 1));
-        // WORKAROUND END
 
         set_pa_config(0x04, 0x07, 0x00, 0x01);
         if (power > 22)
@@ -677,7 +659,7 @@ void STM32WL_LoRaRadio::set_channel(uint32_t frequency)
         _image_calibrated = true;
     }
 
-    freq = (uint32_t) ceil(((float) frequency / (float) FREQ_STEP));
+    freq = (uint32_t) ceil((float) frequency / (float) FREQ_STEP);
     buf[0] = (uint8_t)((freq >> 24) & 0xFF);
     buf[1] = (uint8_t)((freq >> 16) & 0xFF);
     buf[2] = (uint8_t)((freq >> 8) & 0xFF);
@@ -734,26 +716,21 @@ void STM32WL_LoRaRadio::init_radio(radio_events_t *events)
 
     _radio_events = events;
 
-//    SubgRf.RxContinuous = false;
     _tx_timeout = 0;
     _rx_timeout = 0;
 
     //call to HAL_SUBGHZ_Init() for MSPInit and NVIC Radio_IRQ setting
     error_value = HAL_SUBGHZ_Init(&hsubghz);
 
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
-
+    MBED_ASSERT(error_value == HAL_OK);
+  
     // this is a POR sequence
     cold_start_wakeup();
 
     SUBGRF_SetTxParams(RFO_LP, 0, RADIO_RAMP_200_US);
-
-    /* ST_WORKAROUND_BEGIN: Sleep radio */
+    
     sleep();
-    /* ST_WORKAROUND_END */
+
 }
 
 
@@ -907,10 +884,7 @@ void STM32WL_LoRaRadio::write_opmode_command(uint8_t cmd, uint8_t *buffer, uint1
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_ExecSetCmd(&hsubghz, (SUBGHZ_RadioSetCmd_t)cmd, buffer, size);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -919,10 +893,7 @@ void STM32WL_LoRaRadio::read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_ExecGetCmd(&hsubghz, (SUBGHZ_RadioGetCmd_t)cmd, buffer, size);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -931,10 +902,7 @@ void STM32WL_LoRaRadio::write_to_register(uint16_t addr, uint8_t data)
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, (uint8_t *)&data, 1);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -944,10 +912,7 @@ void STM32WL_LoRaRadio::write_to_register(uint16_t addr, uint8_t *data,
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_WriteRegisters(&hsubghz, addr, data, size);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -957,10 +922,7 @@ uint8_t STM32WL_LoRaRadio::read_register(uint16_t addr)
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_ReadRegisters(&hsubghz, addr, &data, 1);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
     return data;
 
@@ -972,10 +934,7 @@ void STM32WL_LoRaRadio::read_register(uint16_t addr, uint8_t *buffer,
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_ReadRegisters(&hsubghz, addr, buffer, size);
-    if (error_value != HAL_OK)
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -984,10 +943,7 @@ void STM32WL_LoRaRadio::write_fifo(uint8_t *buffer, uint8_t size)
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_WriteBuffer(&hsubghz, 0, buffer, size);
-    if (error_value != HAL_OK) /* 2nd param is offset */
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 
 }
 
@@ -998,6 +954,7 @@ void STM32WL_LoRaRadio::set_modem(uint8_t modem)
     // setting modem type must happen in standby mode
     if (_operation_mode != MODE_STDBY_RC)
     {
+	    // radio standby
         standby();
     }
 
@@ -1014,10 +971,7 @@ void STM32WL_LoRaRadio::read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset)
     HAL_StatusTypeDef error_value;
 
     error_value = HAL_SUBGHZ_ReadBuffer(&hsubghz, offset, buffer, size);
-    if (error_value != HAL_OK) /* 2nd param is offset */
-    {
-        error_handler(error_value);
-    }
+    MBED_ASSERT(error_value == HAL_OK);
 }
 
 
@@ -1321,11 +1275,10 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
                       IRQ_RADIO_NONE,
                       IRQ_RADIO_NONE);
 
-    /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
-    /* Set DBG pin */
-//    DBG_GPIO_RADIO_TX(SET);
-//  STM32WL_LoRaRadio::setTXPin(1);
-
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+        /* Set TX DBG pin */
+   _rf_dbg_tx = 1;
+#endif
 
     /* Set RF switch */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_TX);
@@ -1383,11 +1336,11 @@ void STM32WL_LoRaRadio::receive(void)
     }
 
 
-    /* ST_WORKAROUND_BEGIN : Set the debug pin and update the radio switch */
-    /* Set DBG pin */
-//    DBG_GPIO_RADIO_RX(SET);
-//    STM32WL_LoRaRadio::setRXPin(1);
-
+#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+        /* Set RX DBG pin */
+   _rf_dbg_rx = 1;
+#endif
+    
     /* RF switch configuration */
     SUBGRF_SetSwitch(_antSwitchPaSelect, RFSWITCH_RX);
     /* ST_WORKAROUND_END */

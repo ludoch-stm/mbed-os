@@ -42,7 +42,6 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "DigitalInOut.h"
 #include "DigitalIn.h"
 #include "AnalogIn.h"
-#include "SPI.h"
 #include "platform/PlatformMutex.h"
 #ifdef MBED_CONF_RTOS_PRESENT
 #include "rtos/Thread.h"
@@ -64,11 +63,14 @@ class STM32WL_LoRaRadio : public LoRaRadio {
 public:
     STM32WL_LoRaRadio( PinName rf_switch_ctrl1,
                        PinName rf_switch_ctrl2,
-                       PinName rf_switch_ctrl3,
-                       PinName rf_dbg_rx,
-                       PinName rf_dbg_tx);
+                       PinName rf_switch_ctrl3);
 
     virtual ~STM32WL_LoRaRadio();
+
+#ifdef MBED_CONF_RTOS_PRESENT
+    // Thread to handle interrupts
+    rtos::Thread irq_thread;
+#endif
 
     /**
      * Registers radio events with the Mbed LoRaWAN stack and
@@ -303,7 +305,7 @@ public:
      * Release exclusive access
      */
     virtual void unlock(void);
-    
+
     static void HAL_SUBGHZ_TxCpltCallback(void);
     static void HAL_SUBGHZ_RxCpltCallback(void);
     static void HAL_SUBGHZ_CRCErrorCallback (void);
@@ -315,28 +317,19 @@ public:
     static uint16_t get_irq_status(void);
     static void read_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
     static void write_opmode_command(uint8_t cmd, uint8_t *buffer, uint16_t size);
-    static void error_handler(HAL_StatusTypeDef error);
     static void read_fifo(uint8_t *buffer, uint8_t size, uint8_t offset);    
     static void get_rx_buffer_status(uint8_t *payload_len, uint8_t *rx_buffer_ptr);
     static void get_packet_status(packet_status_t *pkt_status);
     static uint8_t get_modem();
     static uint8_t read_register(uint16_t addr);
-    void setTXPin(int32_t value);
-    void setRXPin(int32_t value);
-   
+    
 private:
 
     // Radio specific controls (TX/RX duplexer switch control)
     mbed::DigitalInOut _rf_switch_ctrl1;
     mbed::DigitalInOut _rf_switch_ctrl2;
-	  mbed::DigitalInOut _rf_switch_ctrl3;
-    mbed::DigitalInOut _rf_dbg_rx;
-		mbed::DigitalInOut _rf_dbg_tx;
+    mbed::DigitalInOut _rf_switch_ctrl3;
 
-#ifdef MBED_CONF_RTOS_PRESENT
-    // Thread to handle interrupts
-    rtos::Thread irq_thread;
-#endif
     // Access protection
     PlatformMutex mutex;
 
@@ -403,8 +396,6 @@ private:
     bool _force_image_calibration;
     bool _network_mode_public;
 
-    static PinName rf_dbg_rx;
-    static PinName rf_dbg_tx;
     // Structure containing all user and network specified settings
     // for radio module
     modulation_params_t _mod_params;

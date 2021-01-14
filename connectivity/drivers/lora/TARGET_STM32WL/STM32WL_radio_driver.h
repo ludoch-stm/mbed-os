@@ -26,6 +26,14 @@ typedef enum
   RBI_SWITCH_RFO_HP = 3,
 } RBI_Switch_TypeDef;
 
+
+/**
+  * Indicates whether or not TCXO is supported by the board
+  * 0: TCXO not supported
+  * 1: TCXO supported
+  */
+#define IS_TCXO_SUPPORTED                   1U
+
 /**
   * @brief drive value used anytime radio is NOT in TX low power mode
   */
