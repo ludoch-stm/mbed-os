@@ -67,11 +67,6 @@ public:
 
     virtual ~STM32WL_LoRaRadio();
 
-#ifdef MBED_CONF_RTOS_PRESENT
-    // Thread to handle interrupts
-    rtos::Thread irq_thread;
-#endif
-
     /**
      * Registers radio events with the Mbed LoRaWAN stack and
      * undergoes initialization steps if any

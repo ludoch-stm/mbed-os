@@ -138,6 +138,13 @@ static DigitalInOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, PIN_OUTPU
 static DigitalInOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, PIN_OUTPUT, PullNone, 0);
 #endif
 
+#ifdef MBED_CONF_RTOS_PRESENT
+static rtos::Thread irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL");
+
+/* irq_status global variable needed with RTOS for RadioIrqProcess callbakc selection */
+static radio_irq_masks_t irq_status_rtos;
+
+#endif
 
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
                                      PinName rf_switch_ctrl2,
@@ -147,9 +154,6 @@ STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
     _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
     _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
     _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0)
-#ifdef MBED_CONF_RTOS_PRESENT
-    , irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL")
-#endif
 
 {
     _radio_events = NULL;
@@ -201,6 +205,22 @@ void STM32WL_LoRaRadio::rf_irq_task(void)
     }
 }
 #endif
+
+/**
+  * @brief This function handles SUBGHZ Radio Interrupt.
+  */
+static void SUBGHZ_Radio_IRQHandler(void)
+{
+#ifdef MBED_CONF_RTOS_PRESENT
+  
+    irq_thread.flags_set(SIG_INTERRUPT);
+  
+    irq_status_rtos = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
+    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+#else
+    RadioIrqProcess();
+#endif  
+}
 
 uint32_t STM32WL_LoRaRadio::RadioGetWakeupTime(void)
 {
@@ -287,13 +307,6 @@ void STM32WL_LoRaRadio::set_tx_continuous_wave(uint32_t freq, int8_t power,
 }
 
 
-/**
-  * @brief This function handles SUBGHZ Radio Interrupt.
-  */
-static void SUBGHZ_Radio_IRQHandler(void)
-{
-    RadioIrqProcess();
-}
 
 
 /* STM32WL driver specific functions */
@@ -317,10 +330,16 @@ void HAL_SUBGHZ_MspInit(SUBGHZ_HandleTypeDef *subghzHandle)
 static void RadioIrqProcess()
 {
     radio_irq_masks_t irq_status;
+  
+#ifdef MBED_CONF_RTOS_PRESENT
+  irq_status = irq_status_rtos;
+#else
+  irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
 
-    irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
-    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
-
+  STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+  
+#endif
+  
     if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE)
     {
         STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback();
