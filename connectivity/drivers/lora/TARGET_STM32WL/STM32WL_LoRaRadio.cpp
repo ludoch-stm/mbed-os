@@ -130,11 +130,11 @@ const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.0
 }; // 500 KHz
 
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
 static DigitalInOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, PIN_OUTPUT, PullNone, 0);
 #endif
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
 static DigitalInOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, PIN_OUTPUT, PullNone, 0);
 #endif
 
@@ -349,7 +349,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_TxCpltCallback(void)
     {
         _radio_events->tx_done();
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
         /* Reset TX DBG pin */
    _rf_dbg_tx = 0;
 #endif
@@ -381,7 +381,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxCpltCallback(void)
 
         _radio_events->rx_done(_data_buffer, payload_len, rssi, snr);
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
         /* Reset RX DBG pin */
    _rf_dbg_rx = 0;
 #endif
@@ -424,7 +424,7 @@ void STM32WL_LoRaRadio::HAL_SUBGHZ_RxTxTimeoutCallback(void)
     {
         _radio_events->rx_timeout();
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
         /* Reset RX DBG pin */
    _rf_dbg_rx = 0;
 #endif
@@ -1275,7 +1275,7 @@ void STM32WL_LoRaRadio::send(uint8_t *buffer, uint8_t size)
                       IRQ_RADIO_NONE,
                       IRQ_RADIO_NONE);
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
         /* Set TX DBG pin */
    _rf_dbg_tx = 1;
 #endif
@@ -1336,7 +1336,7 @@ void STM32WL_LoRaRadio::receive(void)
     }
 
 
-#if MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
+#ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
         /* Set RX DBG pin */
    _rf_dbg_rx = 1;
 #endif
