@@ -1,9 +1,12 @@
 /*!
  * \file      STM32WL_radio_driver.h
+ * Copyright 2021 STMicroelectronics
+ * SPDX-License-Identifier: BSD-3-Clause
  *
  * \brief     STM32WL driver implementation
  *
  */
+
 
 #ifndef MBED_LORA_RADIO_DRV_STM32WL_RADIO_DRIVER_H_
 #define MBED_LORA_RADIO_DRV_STM32WL_RADIO_DRIVER_H_

@@ -27,7 +27,7 @@ SPDX-License-Identifier: BSD-3-Clause
   *
   *          Portions COPYRIGHT 2021 STMicroelectronics
   *
-  * @file    STM32WL_LoRaRadio.c
+  * @file    STM32WL_LoRaRadio.cpp
   * @author  MCD Application Team
   * @brief   radio driver implementation
   ******************************************************************************
@@ -36,11 +36,8 @@ SPDX-License-Identifier: BSD-3-Clause
 
 #include <math.h>
 #include "ThisThread.h"
-#include "mbed_wait_api.h"
 #include "Timer.h"
 #include "STM32WL_LoRaRadio.h"
-#include "stm32wlxx_hal_subghz.h"
-
 
 uint8_t regulator_mode = MBED_CONF_STM32WL_LORA_DRIVER_REGULATOR_MODE;
 
@@ -50,6 +47,7 @@ uint8_t board_rf_switch_config  = MBED_CONF_STM32WL_LORA_DRIVER_RF_SWITCH_CONFIG
 
 
 static void SUBGHZ_Radio_IRQHandler(void);
+
 // Handler called by thread in response to signal directly
 static void RadioIrqProcess();
 
@@ -60,8 +58,6 @@ static radio_events_t *_radio_events;
 SUBGHZ_HandleTypeDef hsubghz;
 
 // Data buffer used for both TX and RX
-// Size of this buffer is configurable via Mbed config system
-// Default is 255 bytes
 static uint8_t _data_buffer[MAX_DATA_BUFFER_SIZE_STM32WL];
 
 static uint8_t _operation_mode;
@@ -69,16 +65,6 @@ static uint8_t _active_modem;
 
 using namespace std::chrono;
 using namespace mbed;
-
-
-#ifdef MBED_CONF_RTOS_PRESENT
-using namespace rtos;
-/**
-  * Signals
-  */
-#define SIG_INTERRUPT        0x02
-
-#endif
 
 
 /**
@@ -125,44 +111,35 @@ const uint8_t sync_word[] = {0xC1, 0x94, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 // in ms                                 SF12    SF11    SF10    SF9    SF8    SF7
 const float lora_symbol_time[3][6] = {{ 32.768, 16.384, 8.192, 4.096, 2.048, 1.024 },  // 125 KHz
-    { 16.384, 8.192,  4.096, 2.048, 1.024, 0.512 },  // 250 KHz
-    { 8.192,  4.096,  2.048, 1.024, 0.512, 0.256 }
-}; // 500 KHz
+                                      { 16.384,  8.192, 4.096, 2.048, 1.024, 0.512 },  // 250 KHz
+                                       { 8.192,  4.096, 2.048, 1.024, 0.512, 0.256 }   // 500 KHz
+};
 
 
 #ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX
-static DigitalInOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, PIN_OUTPUT, PullNone, 0);
+static DigitalOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, 0);
 #endif
 
 #ifdef MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX
-static DigitalInOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, PIN_OUTPUT, PullNone, 0);
+static DigitalOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, 0);
 #endif
 
-#ifdef MBED_CONF_RTOS_PRESENT
-static rtos::Thread irq_thread(osPriorityRealtime, 1024, NULL, "Thread_STM32WL");
-
-/* irq_status global variable needed with RTOS for RadioIrqProcess callbakc selection */
-static radio_irq_masks_t irq_status_rtos;
-
-#endif
 
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
                                      PinName rf_switch_ctrl2,
                                      PinName rf_switch_ctrl3
                                     )
     :
-    _rf_switch_ctrl1(rf_switch_ctrl1, PIN_OUTPUT, PullNone, 0),
-    _rf_switch_ctrl2(rf_switch_ctrl2, PIN_OUTPUT, PullNone, 0),
-    _rf_switch_ctrl3(rf_switch_ctrl3, PIN_OUTPUT, PullNone, 0)
+    _rf_switch_ctrl1(rf_switch_ctrl1, 0),
+    _rf_switch_ctrl2(rf_switch_ctrl2, 0),
+    _rf_switch_ctrl3(rf_switch_ctrl3, 0)
 
 {
     _radio_events = NULL;
     _image_calibrated = false;
     _force_image_calibration = false;
     _active_modem = MODEM_LORA;
-#ifdef MBED_CONF_RTOS_PRESENT
-    irq_thread.start(callback(this, &STM32WL_LoRaRadio::rf_irq_task));
-#endif
+
 }
 
 STM32WL_LoRaRadio::~STM32WL_LoRaRadio()
@@ -186,40 +163,13 @@ void STM32WL_LoRaRadio::unlock(void)
     mutex.unlock();
 }
 
-#ifdef MBED_CONF_RTOS_PRESENT
-/**
-  * Thread task handling IRQs
-  */
-void STM32WL_LoRaRadio::rf_irq_task(void)
-{
-    for (;;)
-    {
-        uint32_t flags = ThisThread::flags_wait_any(0x7FFFFFFF);
-
-        lock();
-        if (flags & SIG_INTERRUPT)
-        {
-            RadioIrqProcess();
-        }
-        unlock();
-    }
-}
-#endif
 
 /**
   * @brief This function handles SUBGHZ Radio Interrupt.
   */
 static void SUBGHZ_Radio_IRQHandler(void)
 {
-#ifdef MBED_CONF_RTOS_PRESENT
-  
-    irq_thread.flags_set(SIG_INTERRUPT);
-  
-    irq_status_rtos = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
-    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
-#else
-    RadioIrqProcess();
-#endif  
+    RadioIrqProcess(); 
 }
 
 uint32_t STM32WL_LoRaRadio::RadioGetWakeupTime(void)
@@ -264,7 +214,7 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
   
     sleep_duration = RadioGetWakeupTime();
     // hold on a bit, radio turn-around time
-    ThisThread::sleep_for(sleep_duration);
+    rtos::ThisThread::sleep_for(sleep_duration);
 
     Timer elapsed_time;
     elapsed_time.start();
@@ -331,14 +281,11 @@ static void RadioIrqProcess()
 {
     radio_irq_masks_t irq_status;
   
-#ifdef MBED_CONF_RTOS_PRESENT
-  irq_status = irq_status_rtos;
-#else
-  irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
 
-  STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+    irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
+    /* clear IRQs lines after recovering their status */
+    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
   
-#endif
   
     if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE)
     {
@@ -843,7 +790,7 @@ void STM32WL_LoRaRadio::radio_reset()
 {
 
     // give some time for automatic image calibration
-    ThisThread::sleep_for(6ms);
+    rtos::ThisThread::sleep_for(6ms);
 }
 
 void STM32WL_LoRaRadio::wakeup()
@@ -879,7 +826,7 @@ void STM32WL_LoRaRadio::sleep(void)
     write_opmode_command(RADIO_SET_SLEEP, &sleep_state, 1);
 
     _operation_mode = MODE_SLEEP;
-    ThisThread::sleep_for(2ms);
+    rtos::ThisThread::sleep_for(2ms);
 }
 
 uint32_t STM32WL_LoRaRadio::random(void)

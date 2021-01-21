@@ -36,20 +36,14 @@ SPDX-License-Identifier: BSD-3-Clause
 #define MBED_LORA_RADIO_DRV_STM32WL_LORARADIO_H_
 
 #include "mbed_critical.h"
-#include "PinNames.h"
-#include "InterruptIn.h"
 #include "DigitalOut.h"
-#include "DigitalInOut.h"
-#include "DigitalIn.h"
-#include "AnalogIn.h"
 #include "platform/PlatformMutex.h"
-#ifdef MBED_CONF_RTOS_PRESENT
-#include "rtos/Thread.h"
-#include "rtos/ThisThread.h"
-#endif
 #include "STM32WL_radio_driver.h"
 #include "lorawan/LoRaRadio.h"
 
+// Data buffer used for both TX and RX
+// Size of this buffer is configurable via Mbed config system
+// Default is 255 bytes
 #ifdef MBED_CONF_STM32WL_LORA_DRIVER_BUFFER_SIZE
 #define MAX_DATA_BUFFER_SIZE_STM32WL                        MBED_CONF_STM32WL_LORA_DRIVER_BUFFER_SIZE
 #else
@@ -321,9 +315,9 @@ public:
 private:
 
     // Radio specific controls (TX/RX duplexer switch control)
-    mbed::DigitalInOut _rf_switch_ctrl1;
-    mbed::DigitalInOut _rf_switch_ctrl2;
-    mbed::DigitalInOut _rf_switch_ctrl3;
+    mbed::DigitalOut _rf_switch_ctrl1;
+    mbed::DigitalOut _rf_switch_ctrl2;
+    mbed::DigitalOut _rf_switch_ctrl3;
 
     // Access protection
     PlatformMutex mutex;
@@ -331,7 +325,6 @@ private:
     // helper functions
     void wakeup();
 
-    // void set_dio2_as_rfswitch_ctrl(uint8_t enable);
     void SUBGRF_SetTcxoMode(radio_TCXO_ctrl_voltage_t voltage, uint32_t timeout);
     void set_device_ready(void);
     int8_t get_rssi();
