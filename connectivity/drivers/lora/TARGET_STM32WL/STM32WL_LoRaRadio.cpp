@@ -35,6 +35,7 @@ SPDX-License-Identifier: BSD-3-Clause
 
 
 #include <math.h>
+#include "ThisThread.h"
 #include "Timer.h"
 #include "STM32WL_LoRaRadio.h"
 
@@ -259,7 +260,7 @@ bool STM32WL_LoRaRadio::perform_carrier_sense(radio_modems_t modem,
   
     sleep_duration = RadioGetWakeupTime();
     // hold on a bit, radio turn-around time
-    ThisThread::sleep_for(sleep_duration);
+    rtos::ThisThread::sleep_for(sleep_duration);
 
     Timer elapsed_time;
     elapsed_time.start();
@@ -838,7 +839,7 @@ void STM32WL_LoRaRadio::radio_reset()
 {
 
     // give some time for automatic image calibration
-    ThisThread::sleep_for(6ms);
+    rtos::ThisThread::sleep_for(6ms);
 }
 
 void STM32WL_LoRaRadio::wakeup()
@@ -874,7 +875,7 @@ void STM32WL_LoRaRadio::sleep(void)
     write_opmode_command(RADIO_SET_SLEEP, &sleep_state, 1);
 
     _operation_mode = MODE_SLEEP;
-    ThisThread::sleep_for(2ms);
+    rtos::ThisThread::sleep_for(2ms);
 }
 
 uint32_t STM32WL_LoRaRadio::random(void)
