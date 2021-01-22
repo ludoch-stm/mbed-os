@@ -67,16 +67,6 @@ using namespace std::chrono;
 using namespace mbed;
 
 
-#ifdef MBED_CONF_RTOS_PRESENT
-using namespace rtos;
-/**
-  * Signals
-  */
-#define SIG_INTERRUPT        0x02
-
-#endif
-
-
 /**
   * @brief voltage of vdd tcxo.
   */
@@ -134,13 +124,6 @@ static DigitalOut _rf_dbg_rx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_RX, 0);
 static DigitalOut _rf_dbg_tx(MBED_CONF_STM32WL_LORA_DRIVER_DEBUG_TX, 0);
 #endif
 
-#ifdef MBED_CONF_RTOS_PRESENT
-static rtos::Thread irq_thread(osPriorityRealtime, 512, NULL, "Thread_STM32WL");
-
-/* irq_status global variable needed with RTOS for RadioIrqProcess callbakc selection */
-static radio_irq_masks_t irq_status_rtos;
-
-#endif
 
 STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
                                      PinName rf_switch_ctrl2,
@@ -156,9 +139,7 @@ STM32WL_LoRaRadio::STM32WL_LoRaRadio(PinName rf_switch_ctrl1,
     _image_calibrated = false;
     _force_image_calibration = false;
     _active_modem = MODEM_LORA;
-#ifdef MBED_CONF_RTOS_PRESENT
-    irq_thread.start(callback(this, &STM32WL_LoRaRadio::rf_irq_task));
-#endif
+
 }
 
 STM32WL_LoRaRadio::~STM32WL_LoRaRadio()
@@ -182,40 +163,13 @@ void STM32WL_LoRaRadio::unlock(void)
     mutex.unlock();
 }
 
-#ifdef MBED_CONF_RTOS_PRESENT
-/**
-  * Thread task handling IRQs
-  */
-void STM32WL_LoRaRadio::rf_irq_task(void)
-{
-    for (;;)
-    {
-        uint32_t flags = ThisThread::flags_wait_any(0x7FFFFFFF);
-
-        lock();
-        if (flags & SIG_INTERRUPT)
-        {
-            RadioIrqProcess();
-        }
-        unlock();
-    }
-}
-#endif
 
 /**
   * @brief This function handles SUBGHZ Radio Interrupt.
   */
 static void SUBGHZ_Radio_IRQHandler(void)
 {
-#ifdef MBED_CONF_RTOS_PRESENT
-  
-    irq_thread.flags_set(SIG_INTERRUPT);
-  
-    irq_status_rtos = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
-    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
-#else
-    RadioIrqProcess();
-#endif  
+    RadioIrqProcess(); 
 }
 
 uint32_t STM32WL_LoRaRadio::RadioGetWakeupTime(void)
@@ -327,14 +281,11 @@ static void RadioIrqProcess()
 {
     radio_irq_masks_t irq_status;
   
-#ifdef MBED_CONF_RTOS_PRESENT
-  irq_status = irq_status_rtos;
-#else
-  irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
 
-  STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
+    irq_status = (radio_irq_masks_t)STM32WL_LoRaRadio::get_irq_status();
+    /* clear IRQs lines after recovering their status */
+    STM32WL_LoRaRadio::clear_irq_status(IRQ_RADIO_ALL);
   
-#endif
   
     if ((irq_status & IRQ_TX_DONE) == IRQ_TX_DONE)
     {

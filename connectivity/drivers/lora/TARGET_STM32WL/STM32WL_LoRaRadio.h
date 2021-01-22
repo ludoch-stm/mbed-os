@@ -38,10 +38,6 @@ SPDX-License-Identifier: BSD-3-Clause
 #include "mbed_critical.h"
 #include "DigitalOut.h"
 #include "platform/PlatformMutex.h"
-#ifdef MBED_CONF_RTOS_PRESENT
-#include "rtos/Thread.h"
-#include "rtos/ThisThread.h"
-#endif
 #include "STM32WL_radio_driver.h"
 #include "lorawan/LoRaRadio.h"
 
